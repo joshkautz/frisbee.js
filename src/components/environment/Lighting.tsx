@@ -1,12 +1,12 @@
-import { DOME_LENGTH, DOME_WIDTH } from "./Field";
+import { DOME_LENGTH, DOME_WIDTH, MOONLIGHT_COLOR } from "@/constants";
 
 export function Lighting() {
   return (
     <>
-      {/* Ambient light for base illumination */}
+      {/* Ambient light */}
       <ambientLight intensity={0.3} />
 
-      {/* Main overhead lights inside dome (stadium lighting) */}
+      {/* Stadium lights inside dome */}
       <spotLight
         position={[0, 24, -DOME_LENGTH / 4]}
         intensity={2}
@@ -40,18 +40,18 @@ export function Lighting() {
         castShadow
       />
 
-      {/* Fill light from sides */}
+      {/* Fill lights */}
       <directionalLight position={[-50, 30, 0]} intensity={0.3} />
       <directionalLight position={[50, 30, 0]} intensity={0.3} />
 
-      {/* Hemisphere light for natural color variation */}
+      {/* Hemisphere light */}
       <hemisphereLight args={[0x606080, 0x202020, 0.4]} />
 
-      {/* Subtle moonlight from above for city atmosphere */}
+      {/* Moonlight */}
       <directionalLight
         position={[100, 150, 100]}
         intensity={0.2}
-        color={0x8888ff}
+        color={MOONLIGHT_COLOR}
       />
     </>
   );

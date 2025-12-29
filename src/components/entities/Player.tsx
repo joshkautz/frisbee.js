@@ -1,28 +1,21 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-
-// Player dimensions (proportional to field scale)
-const BODY_HEIGHT = 1.2;
-const BODY_RADIUS = 0.35;
-const HEAD_RADIUS = 0.25;
-const LEG_HEIGHT = 0.6;
-const LEG_RADIUS = 0.12;
-const ARM_LENGTH = 0.5;
-const ARM_RADIUS = 0.08;
-
-interface PlayerProps {
-  position: [number, number, number];
-  color: number;
-  velocity?: THREE.Vector3;
-}
+import {
+  BODY_HEIGHT,
+  BODY_RADIUS,
+  HEAD_RADIUS,
+  LEG_HEIGHT,
+  LEG_RADIUS,
+  ARM_LENGTH,
+  ARM_RADIUS,
+  SKIN_COLOR,
+} from "@/constants";
+import type { PlayerProps } from "@/types";
 
 export function Player({ position, color, velocity }: PlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const velocityRef = useRef(velocity ?? new THREE.Vector3(0, 0, 0));
-
-  // Skin tone for head and limbs
-  const skinColor = 0xd4a574;
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -37,16 +30,21 @@ export function Player({ position, color, velocity }: PlayerProps) {
 
   return (
     <group ref={groupRef} position={position}>
-      {/* Body/Torso - capsule shape */}
+      {/* Body/Torso */}
       <mesh position={[0, LEG_HEIGHT + BODY_HEIGHT / 2, 0]} castShadow>
-        <capsuleGeometry args={[BODY_RADIUS, BODY_HEIGHT - BODY_RADIUS * 2, 8, 16]} />
+        <capsuleGeometry
+          args={[BODY_RADIUS, BODY_HEIGHT - BODY_RADIUS * 2, 8, 16]}
+        />
         <meshStandardMaterial color={color} />
       </mesh>
 
       {/* Head */}
-      <mesh position={[0, LEG_HEIGHT + BODY_HEIGHT + HEAD_RADIUS, 0]} castShadow>
+      <mesh
+        position={[0, LEG_HEIGHT + BODY_HEIGHT + HEAD_RADIUS, 0]}
+        castShadow
+      >
         <sphereGeometry args={[HEAD_RADIUS, 16, 16]} />
-        <meshStandardMaterial color={skinColor} />
+        <meshStandardMaterial color={SKIN_COLOR} />
       </mesh>
 
       {/* Left Leg */}
@@ -63,12 +61,16 @@ export function Player({ position, color, velocity }: PlayerProps) {
 
       {/* Left Arm */}
       <mesh
-        position={[-(BODY_RADIUS + ARM_RADIUS), LEG_HEIGHT + BODY_HEIGHT - 0.2, 0]}
+        position={[
+          -(BODY_RADIUS + ARM_RADIUS),
+          LEG_HEIGHT + BODY_HEIGHT - 0.2,
+          0,
+        ]}
         rotation={[0, 0, Math.PI / 6]}
         castShadow
       >
         <capsuleGeometry args={[ARM_RADIUS, ARM_LENGTH, 4, 8]} />
-        <meshStandardMaterial color={skinColor} />
+        <meshStandardMaterial color={SKIN_COLOR} />
       </mesh>
 
       {/* Right Arm */}
@@ -78,7 +80,7 @@ export function Player({ position, color, velocity }: PlayerProps) {
         castShadow
       >
         <capsuleGeometry args={[ARM_RADIUS, ARM_LENGTH, 4, 8]} />
-        <meshStandardMaterial color={skinColor} />
+        <meshStandardMaterial color={SKIN_COLOR} />
       </mesh>
     </group>
   );

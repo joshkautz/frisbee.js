@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Game } from "./game/Game";
+import { Game } from "@/components";
 
 const container = document.getElementById("game-container");
 const loading = document.getElementById("loading");
@@ -9,7 +9,6 @@ if (!container) {
   throw new Error("Game container not found!");
 }
 
-// Hide loading indicator when React mounts
 if (loading) {
   loading.hidden = true;
 }

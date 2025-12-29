@@ -1,13 +1,8 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-
-const DISC_RADIUS = 0.14; // Standard disc is ~27cm diameter
-const DISC_HEIGHT = 0.025;
-
-interface DiscProps {
-  position: [number, number, number];
-}
+import { DISC_RADIUS, DISC_HEIGHT, DISC_COLOR, DISC_RIM_COLOR } from "@/constants";
+import type { DiscProps } from "@/types";
 
 export function Disc({ position }: DiscProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -38,13 +33,13 @@ export function Disc({ position }: DiscProps) {
       {/* Main disc body */}
       <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 32]} />
-        <meshStandardMaterial color={0xffffff} />
+        <meshStandardMaterial color={DISC_COLOR} />
       </mesh>
 
-      {/* Disc rim (slightly darker) */}
+      {/* Disc rim */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[DISC_RADIUS - 0.01, 0.015, 8, 32]} />
-        <meshStandardMaterial color={0xdddddd} />
+        <meshStandardMaterial color={DISC_RIM_COLOR} />
       </mesh>
     </group>
   );
