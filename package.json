@@ -1,0 +1,45 @@
+{
+  "name": "frisbee.js",
+  "version": "0.1.0",
+  "description": "A browser-based ultimate frisbee video game built with three.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joshkautz/frisbee.js.git"
+  },
+  "keywords": [
+    "ultimate-frisbee",
+    "game",
+    "threejs",
+    "typescript"
+  ],
+  "author": "Josh Kautz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/joshkautz/frisbee.js/issues"
+  },
+  "homepage": "https://github.com/joshkautz/frisbee.js#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.0.3",
+    "@types/three": "^0.182.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.51.0",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "three": "^0.182.0"
+  }
+}
