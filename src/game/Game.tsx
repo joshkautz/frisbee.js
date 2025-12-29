@@ -1,30 +1,39 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { Field } from "./Field";
+import { Field, FIELD_LENGTH } from "./Field";
 import { Team } from "./Team";
 import { Disc } from "./Disc";
 import { Lighting } from "./Lighting";
-
-const FIELD_LENGTH = 100;
+import { Dome } from "./Dome";
+import { City } from "./City";
 
 export function Game() {
   return (
     <Canvas
       camera={{
-        fov: 45,
-        position: [0, 60, 80],
+        fov: 50,
+        position: [0, 80, 120],
         near: 0.1,
-        far: 500,
+        far: 1000,
       }}
       shadows
-      style={{ background: "#87CEEB" }}
+      style={{ background: "linear-gradient(to bottom, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%)" }}
       role="img"
-      aria-label="3D Ultimate Frisbee game field with two teams of 7 players each"
+      aria-label="3D Ultimate Frisbee game in an inflatable dome surrounded by a city at night"
     >
       {/* Lighting */}
       <Lighting />
 
-      {/* Field - rotated so length runs along Z axis (into the screen) */}
+      {/* Sky/fog for atmosphere */}
+      <fog attach="fog" args={[0x1a1a2e, 100, 400]} />
+
+      {/* City environment (buildings, roads, streets) */}
+      <City />
+
+      {/* Inflatable dome over the field */}
+      <Dome />
+
+      {/* Field with grass buffer */}
       <Field />
 
       {/* Home team (blue) - positioned in their half */}
@@ -41,8 +50,8 @@ export function Game() {
         enablePan={true}
         enableZoom={true}
         enableRotate={true}
-        minDistance={30}
-        maxDistance={150}
+        minDistance={40}
+        maxDistance={250}
         maxPolarAngle={Math.PI / 2.1}
         target={[0, 0, 0]}
       />
