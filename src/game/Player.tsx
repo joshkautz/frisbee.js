@@ -2,8 +2,14 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-const PLAYER_RADIUS = 0.8;
-const PLAYER_HEIGHT = 0.5;
+// Player dimensions (proportional to field scale)
+const BODY_HEIGHT = 1.2;
+const BODY_RADIUS = 0.35;
+const HEAD_RADIUS = 0.25;
+const LEG_HEIGHT = 0.6;
+const LEG_RADIUS = 0.12;
+const ARM_LENGTH = 0.5;
+const ARM_RADIUS = 0.08;
 
 interface PlayerProps {
   position: [number, number, number];
@@ -12,24 +18,68 @@ interface PlayerProps {
 }
 
 export function Player({ position, color, velocity }: PlayerProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const velocityRef = useRef(velocity ?? new THREE.Vector3(0, 0, 0));
 
+  // Skin tone for head and limbs
+  const skinColor = 0xd4a574;
+
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
 
     // Apply velocity to position
-    meshRef.current.position.x += velocityRef.current.x * delta;
-    meshRef.current.position.z += velocityRef.current.z * delta;
+    groupRef.current.position.x += velocityRef.current.x * delta;
+    groupRef.current.position.z += velocityRef.current.z * delta;
 
     // Apply friction
     velocityRef.current.multiplyScalar(0.98);
   });
 
   return (
-    <mesh ref={meshRef} position={position}>
-      <cylinderGeometry args={[PLAYER_RADIUS, PLAYER_RADIUS, PLAYER_HEIGHT, 16]} />
-      <meshBasicMaterial color={color} />
-    </mesh>
+    <group ref={groupRef} position={position}>
+      {/* Body/Torso - capsule shape */}
+      <mesh position={[0, LEG_HEIGHT + BODY_HEIGHT / 2, 0]} castShadow>
+        <capsuleGeometry args={[BODY_RADIUS, BODY_HEIGHT - BODY_RADIUS * 2, 8, 16]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+
+      {/* Head */}
+      <mesh position={[0, LEG_HEIGHT + BODY_HEIGHT + HEAD_RADIUS, 0]} castShadow>
+        <sphereGeometry args={[HEAD_RADIUS, 16, 16]} />
+        <meshStandardMaterial color={skinColor} />
+      </mesh>
+
+      {/* Left Leg */}
+      <mesh position={[-BODY_RADIUS / 2, LEG_HEIGHT / 2, 0]} castShadow>
+        <capsuleGeometry args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+
+      {/* Right Leg */}
+      <mesh position={[BODY_RADIUS / 2, LEG_HEIGHT / 2, 0]} castShadow>
+        <capsuleGeometry args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+
+      {/* Left Arm */}
+      <mesh
+        position={[-(BODY_RADIUS + ARM_RADIUS), LEG_HEIGHT + BODY_HEIGHT - 0.2, 0]}
+        rotation={[0, 0, Math.PI / 6]}
+        castShadow
+      >
+        <capsuleGeometry args={[ARM_RADIUS, ARM_LENGTH, 4, 8]} />
+        <meshStandardMaterial color={skinColor} />
+      </mesh>
+
+      {/* Right Arm */}
+      <mesh
+        position={[BODY_RADIUS + ARM_RADIUS, LEG_HEIGHT + BODY_HEIGHT - 0.2, 0]}
+        rotation={[0, 0, -Math.PI / 6]}
+        castShadow
+      >
+        <capsuleGeometry args={[ARM_RADIUS, ARM_LENGTH, 4, 8]} />
+        <meshStandardMaterial color={skinColor} />
+      </mesh>
+    </group>
   );
 }

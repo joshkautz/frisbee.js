@@ -1,5 +1,4 @@
 import { Line } from "@react-three/drei";
-import * as THREE from "three";
 
 // Ultimate frisbee field dimensions (in meters)
 // Standard field: 100m x 37m with 18m end zones
@@ -11,56 +10,71 @@ export function Field() {
   const playingFieldStart = -FIELD_LENGTH / 2 + END_ZONE_DEPTH;
   const playingFieldEnd = FIELD_LENGTH / 2 - END_ZONE_DEPTH;
 
-  // Boundary line points
+  // Boundary line points (length along Z, width along X)
   const boundaryPoints: [number, number, number][] = [
-    [-FIELD_LENGTH / 2, 0.02, -FIELD_WIDTH / 2],
-    [FIELD_LENGTH / 2, 0.02, -FIELD_WIDTH / 2],
-    [FIELD_LENGTH / 2, 0.02, FIELD_WIDTH / 2],
-    [-FIELD_LENGTH / 2, 0.02, FIELD_WIDTH / 2],
-    [-FIELD_LENGTH / 2, 0.02, -FIELD_WIDTH / 2],
+    [-FIELD_WIDTH / 2, 0.02, -FIELD_LENGTH / 2],
+    [FIELD_WIDTH / 2, 0.02, -FIELD_LENGTH / 2],
+    [FIELD_WIDTH / 2, 0.02, FIELD_LENGTH / 2],
+    [-FIELD_WIDTH / 2, 0.02, FIELD_LENGTH / 2],
+    [-FIELD_WIDTH / 2, 0.02, -FIELD_LENGTH / 2],
   ];
 
-  // Goal line points
-  const leftGoalPoints: [number, number, number][] = [
-    [playingFieldStart, 0.02, -FIELD_WIDTH / 2],
-    [playingFieldStart, 0.02, FIELD_WIDTH / 2],
+  // Goal line points (horizontal lines across field width)
+  const nearGoalPoints: [number, number, number][] = [
+    [-FIELD_WIDTH / 2, 0.02, playingFieldStart],
+    [FIELD_WIDTH / 2, 0.02, playingFieldStart],
   ];
 
-  const rightGoalPoints: [number, number, number][] = [
-    [playingFieldEnd, 0.02, -FIELD_WIDTH / 2],
-    [playingFieldEnd, 0.02, FIELD_WIDTH / 2],
+  const farGoalPoints: [number, number, number][] = [
+    [-FIELD_WIDTH / 2, 0.02, playingFieldEnd],
+    [FIELD_WIDTH / 2, 0.02, playingFieldEnd],
   ];
 
   return (
     <group>
       {/* Main playing surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[FIELD_LENGTH, FIELD_WIDTH]} />
-        <meshBasicMaterial color={0x2d5a27} side={THREE.DoubleSide} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[FIELD_WIDTH, FIELD_LENGTH]} />
+        <meshStandardMaterial color={0x2d8a37} />
       </mesh>
 
-      {/* Left end zone */}
+      {/* Near end zone (closer to camera) */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[-(FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2), 0.01, 0]}
+        position={[0, 0.01, -(FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2)]}
+        receiveShadow
       >
-        <planeGeometry args={[END_ZONE_DEPTH, FIELD_WIDTH]} />
-        <meshBasicMaterial color={0x1e4d2b} side={THREE.DoubleSide} />
+        <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
+        <meshStandardMaterial color={0x1e6d2b} />
       </mesh>
 
-      {/* Right end zone */}
+      {/* Far end zone */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2, 0.01, 0]}
+        position={[0, 0.01, FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2]}
+        receiveShadow
       >
-        <planeGeometry args={[END_ZONE_DEPTH, FIELD_WIDTH]} />
-        <meshBasicMaterial color={0x1e4d2b} side={THREE.DoubleSide} />
+        <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
+        <meshStandardMaterial color={0x1e6d2b} />
       </mesh>
 
       {/* Field lines */}
       <Line points={boundaryPoints} color="white" lineWidth={2} />
-      <Line points={leftGoalPoints} color="white" lineWidth={2} />
-      <Line points={rightGoalPoints} color="white" lineWidth={2} />
+      <Line points={nearGoalPoints} color="white" lineWidth={2} />
+      <Line points={farGoalPoints} color="white" lineWidth={2} />
+
+      {/* Center line (brick mark area) */}
+      <Line
+        points={[
+          [-FIELD_WIDTH / 2, 0.02, 0],
+          [FIELD_WIDTH / 2, 0.02, 0],
+        ]}
+        color="white"
+        lineWidth={1}
+        dashed
+        dashSize={2}
+        gapSize={2}
+      />
     </group>
   );
 }

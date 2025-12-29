@@ -2,24 +2,27 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-const DISC_RADIUS = 0.5;
-const DISC_HEIGHT = 0.1;
+const DISC_RADIUS = 0.14; // Standard disc is ~27cm diameter
+const DISC_HEIGHT = 0.025;
 
 interface DiscProps {
   position: [number, number, number];
 }
 
 export function Disc({ position }: DiscProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const velocityRef = useRef(new THREE.Vector3(0, 0, 0));
   const isFlyingRef = useRef(false);
 
   useFrame((_, delta) => {
-    if (!meshRef.current || !isFlyingRef.current) return;
+    if (!groupRef.current || !isFlyingRef.current) return;
 
     // Apply velocity to position
-    meshRef.current.position.x += velocityRef.current.x * delta;
-    meshRef.current.position.z += velocityRef.current.z * delta;
+    groupRef.current.position.x += velocityRef.current.x * delta;
+    groupRef.current.position.z += velocityRef.current.z * delta;
+
+    // Spin the disc while flying
+    groupRef.current.rotation.y += delta * 15;
 
     // Apply air resistance
     velocityRef.current.multiplyScalar(0.995);
@@ -31,9 +34,18 @@ export function Disc({ position }: DiscProps) {
   });
 
   return (
-    <mesh ref={meshRef} position={position}>
-      <cylinderGeometry args={[DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 32]} />
-      <meshBasicMaterial color={0xffffff} />
-    </mesh>
+    <group ref={groupRef} position={position}>
+      {/* Main disc body */}
+      <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 32]} />
+        <meshStandardMaterial color={0xffffff} />
+      </mesh>
+
+      {/* Disc rim (slightly darker) */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[DISC_RADIUS - 0.01, 0.015, 8, 32]} />
+        <meshStandardMaterial color={0xdddddd} />
+      </mesh>
+    </group>
   );
 }
