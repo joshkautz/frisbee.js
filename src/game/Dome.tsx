@@ -5,11 +5,91 @@ import { DOME_LENGTH, DOME_WIDTH } from "./Field";
 
 // Dome dimensions
 const DOME_HEIGHT = 25;
+const FOUNDATION_WIDTH = 1.5; // Consistent border width around dome base
 
-// Attempt to replicate a squircle - this creates a rounded rectangle shape that transitions with the exponent
-// see: https://en.wikipedia.org/wiki/Superellipse
-function signedPow(base: number, exp: number): number {
-  return Math.sign(base) * Math.pow(Math.abs(base), exp);
+// Interpolate between rectangular corners and ellipse based on height
+function getPointOnPerimeter(
+  angle: number,
+  halfWidth: number,
+  halfLength: number,
+  rectangleWeight: number // 1 = rectangle, 0 = ellipse
+): [number, number] {
+  // Ellipse point
+  const ellipseX = halfWidth * Math.cos(angle);
+  const ellipseZ = halfLength * Math.sin(angle);
+
+  // Rectangle point - find intersection of ray with rectangle
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+
+  let rectX: number, rectZ: number;
+
+  // Determine which edge the ray intersects
+  const tanA = Math.abs(sinA / (cosA || 1e-10));
+  const aspectRatio = halfLength / halfWidth;
+
+  if (tanA <= aspectRatio) {
+    // Intersects left or right edge
+    rectX = Math.sign(cosA) * halfWidth;
+    rectZ = rectX * (sinA / (cosA || 1e-10));
+  } else {
+    // Intersects top or bottom edge
+    rectZ = Math.sign(sinA) * halfLength;
+    rectX = rectZ * (cosA / (sinA || 1e-10));
+  }
+
+  // Interpolate between rectangle and ellipse
+  const x = rectX * rectangleWeight + ellipseX * (1 - rectangleWeight);
+  const z = rectZ * rectangleWeight + ellipseZ * (1 - rectangleWeight);
+
+  return [x, z];
+}
+
+// Generate angles that include exact corner angles
+function generateAnglesWithCorners(
+  segmentsPerSide: number,
+  halfWidth: number,
+  halfLength: number
+): number[] {
+  const angles: number[] = [];
+
+  // Corner angles (where the rectangle corners are)
+  const cornerAngle = Math.atan2(halfLength, halfWidth);
+  const cornerAngles = [
+    cornerAngle, // Top-right
+    Math.PI - cornerAngle, // Top-left
+    Math.PI + cornerAngle, // Bottom-left
+    2 * Math.PI - cornerAngle, // Bottom-right
+  ];
+
+  // Generate angles for each side, ensuring corners are included
+  // We have 4 sides: 0→corner1, corner1→corner2, corner2→corner3, corner3→corner4, corner4→2π
+  const sideAngles = [
+    { start: 0, end: cornerAngles[0] },
+    { start: cornerAngles[0], end: cornerAngles[1] },
+    { start: cornerAngles[1], end: cornerAngles[2] },
+    { start: cornerAngles[2], end: cornerAngles[3] },
+    { start: cornerAngles[3], end: 2 * Math.PI },
+  ];
+
+  for (const side of sideAngles) {
+    const sideLength = side.end - side.start;
+    // More segments for longer sides
+    const numSegments = Math.max(
+      2,
+      Math.round((sideLength / (Math.PI / 2)) * segmentsPerSide)
+    );
+
+    for (let j = 0; j < numSegments; j++) {
+      const t = j / numSegments;
+      angles.push(side.start + t * sideLength);
+    }
+  }
+
+  // Add final angle to close the loop
+  angles.push(2 * Math.PI);
+
+  return angles;
 }
 
 export function Dome() {
@@ -17,62 +97,49 @@ export function Dome() {
   const domeGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
 
-    const perimeterSegments = 96; // Segments around the perimeter
-    const heightSegments = 32; // Segments from base to top
+    const segmentsPerSide = 32;
+    const heightSegments = 32;
     const vertices: number[] = [];
     const indices: number[] = [];
-    const normals: number[] = [];
     const uvs: number[] = [];
+
+    // Pre-calculate angles that include corners
+    const baseAngles = generateAnglesWithCorners(
+      segmentsPerSide,
+      DOME_WIDTH / 2,
+      DOME_LENGTH / 2
+    );
+    const perimeterSegments = baseAngles.length - 1;
 
     // Generate vertices
     for (let h = 0; h <= heightSegments; h++) {
       const heightRatio = h / heightSegments;
 
       // Height follows a sine curve for dome shape
-      const y = DOME_HEIGHT * Math.sin(heightRatio * Math.PI / 2);
+      const y = DOME_HEIGHT * Math.sin((heightRatio * Math.PI) / 2);
 
-      // The "roundness" exponent: starts rectangular (high n) at base, becomes round (n=2) at top
-      // n=2 is ellipse, n>2 is more rectangular (superellipse)
-      const baseExponent = 6; // More rectangular at base
-      const topExponent = 2; // Circular at top
-      const n = baseExponent + (topExponent - baseExponent) * heightRatio;
+      // Rectangle weight: 1 at base (pure rectangle), 0 at top (pure ellipse)
+      // Use a curve that keeps it rectangular longer at the base
+      const rectangleWeight = Math.pow(1 - heightRatio, 2);
 
       // Scale factor - how much the perimeter shrinks as we go up
-      const scale = Math.cos(heightRatio * Math.PI / 2);
+      const scale = Math.cos((heightRatio * Math.PI) / 2);
 
       const halfWidth = (DOME_WIDTH / 2) * scale;
       const halfLength = (DOME_LENGTH / 2) * scale;
 
-      for (let p = 0; p <= perimeterSegments; p++) {
-        const u = p / perimeterSegments;
-        const theta = u * Math.PI * 2;
+      for (let p = 0; p < baseAngles.length; p++) {
+        const theta = baseAngles[p];
+        const u = theta / (2 * Math.PI);
 
-        // Superellipse formula for rectangular-to-round shape
-        const cosTheta = Math.cos(theta);
-        const sinTheta = Math.sin(theta);
-
-        // Calculate radius at this angle using superellipse
-        // |x/a|^n + |z/b|^n = 1, parameterized
-        const px = halfWidth * signedPow(cosTheta, 2 / n);
-        const pz = halfLength * signedPow(sinTheta, 2 / n);
+        const [px, pz] = getPointOnPerimeter(
+          theta,
+          halfWidth,
+          halfLength,
+          rectangleWeight
+        );
 
         vertices.push(px, y, pz);
-
-        // Calculate normal using gradient of superellipse
-        // For superellipse: gradient is (n*|x|^(n-1)*sign(x)/a^n, 0, n*|z|^(n-1)*sign(z)/b^n)
-        // Plus vertical component based on dome slope
-        const eps = 0.001;
-        const nx = Math.abs(cosTheta) > eps
-          ? signedPow(cosTheta, 2 / n - 1) / halfWidth
-          : 0;
-        const nz = Math.abs(sinTheta) > eps
-          ? signedPow(sinTheta, 2 / n - 1) / halfLength
-          : 0;
-        const ny = 0.5 * (1 - scale); // Upward component increases toward top
-
-        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-        normals.push(nx / len, ny / len, nz / len);
-
         uvs.push(u, heightRatio);
       }
     }
@@ -94,31 +161,26 @@ export function Dome() {
       "position",
       new THREE.Float32BufferAttribute(vertices, 3)
     );
-    geometry.setAttribute(
-      "normal",
-      new THREE.Float32BufferAttribute(normals, 3)
-    );
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
-    geometry.computeVertexNormals(); // Recalculate for smooth shading
+    geometry.computeVertexNormals();
 
     return geometry;
   }, []);
 
-  // Create base outline points (rectangular with rounded corners)
+  // Create base outline points (true rectangle)
   const baseOutlinePoints = useMemo(() => {
-    const points: [number, number, number][] = [];
-    const segments = 96;
-    const n = 6; // Same as base exponent
+    const hw = DOME_WIDTH / 2;
+    const hl = DOME_LENGTH / 2;
+    const y = 0.1;
 
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const x = (DOME_WIDTH / 2) * signedPow(Math.cos(theta), 2 / n);
-      const z = (DOME_LENGTH / 2) * signedPow(Math.sin(theta), 2 / n);
-      points.push([x, 0.1, z]);
-    }
-
-    return points;
+    return [
+      [hw, y, hl],
+      [-hw, y, hl],
+      [-hw, y, -hl],
+      [hw, y, -hl],
+      [hw, y, hl], // Close the loop
+    ] as [number, number, number][];
   }, []);
 
   return (
@@ -147,47 +209,37 @@ export function Dome() {
       {/* Base outline of the dome */}
       <Line points={baseOutlinePoints} color={0x666666} lineWidth={2} />
 
-      {/* Base platform/foundation */}
+      {/* Base platform/foundation - consistent width border */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <shapeGeometry args={[createBaseShape()]} />
+        <shapeGeometry args={[createFoundationShape()]} />
         <meshStandardMaterial color={0x444444} />
       </mesh>
     </group>
   );
 }
 
-// Create the base shape as a rounded rectangle
-function createBaseShape(): THREE.Shape {
+// Create the foundation as a rectangular ring with consistent width
+function createFoundationShape(): THREE.Shape {
+  const outerHW = DOME_WIDTH / 2;
+  const outerHL = DOME_LENGTH / 2;
+  const innerHW = outerHW - FOUNDATION_WIDTH;
+  const innerHL = outerHL - FOUNDATION_WIDTH;
+
+  // Outer rectangle
   const shape = new THREE.Shape();
-  const segments = 96;
-  const n = 6;
+  shape.moveTo(outerHW, outerHL);
+  shape.lineTo(-outerHW, outerHL);
+  shape.lineTo(-outerHW, -outerHL);
+  shape.lineTo(outerHW, -outerHL);
+  shape.lineTo(outerHW, outerHL);
 
-  // Start at first point
-  const startX = (DOME_WIDTH / 2) * signedPow(Math.cos(0), 2 / n);
-  const startZ = (DOME_LENGTH / 2) * signedPow(Math.sin(0), 2 / n);
-  shape.moveTo(startX, startZ);
-
-  // Draw the superellipse outline
-  for (let i = 1; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    const x = (DOME_WIDTH / 2) * signedPow(Math.cos(theta), 2 / n);
-    const z = (DOME_LENGTH / 2) * signedPow(Math.sin(theta), 2 / n);
-    shape.lineTo(x, z);
-  }
-
-  // Create inner cutout for the ring effect
-  const innerScale = 0.97;
+  // Inner rectangle (hole) - must go opposite direction
   const hole = new THREE.Path();
-  const innerStartX = (DOME_WIDTH / 2) * innerScale * signedPow(Math.cos(0), 2 / n);
-  const innerStartZ = (DOME_LENGTH / 2) * innerScale * signedPow(Math.sin(0), 2 / n);
-  hole.moveTo(innerStartX, innerStartZ);
-
-  for (let i = 1; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    const x = (DOME_WIDTH / 2) * innerScale * signedPow(Math.cos(theta), 2 / n);
-    const z = (DOME_LENGTH / 2) * innerScale * signedPow(Math.sin(theta), 2 / n);
-    hole.lineTo(x, z);
-  }
+  hole.moveTo(innerHW, innerHL);
+  hole.lineTo(innerHW, -innerHL);
+  hole.lineTo(-innerHW, -innerHL);
+  hole.lineTo(-innerHW, innerHL);
+  hole.lineTo(innerHW, innerHL);
 
   shape.holes.push(hole);
 
