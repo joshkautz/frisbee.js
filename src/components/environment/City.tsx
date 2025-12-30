@@ -13,13 +13,11 @@ import * as THREE from "three";
 import {
   DOME_LENGTH,
   DOME_WIDTH,
+  DOME_BUFFER,
   CITY_SIZE,
   BLOCK_SIZE,
   BLOCK_INNER_SIZE,
   BUILDING_GAP,
-  ROAD_WIDTH,
-  SIDEWALK_WIDTH,
-  DOME_BUFFER,
   BUILDING_MIN_WIDTH,
   BUILDING_MAX_WIDTH,
   BUILDING_MIN_DEPTH,
@@ -27,7 +25,6 @@ import {
   BUILDING_MIN_HEIGHT,
   BUILDING_MAX_HEIGHT,
   CITY_GROUND_COLOR,
-  PARKING_LOT_COLOR,
   BUILDING_COLORS,
   CITY_SEED,
 } from "@/constants";
@@ -38,16 +35,12 @@ import { Building } from "./Building";
 import { StreetLight } from "./StreetLight";
 import { RoadSystem } from "./roads";
 
-// Shared materials for city ground surfaces (created once, disposed on HMR)
+// Shared material for city ground (created once, disposed on HMR)
 const cityGroundMaterial = new THREE.MeshStandardMaterial({
   color: CITY_GROUND_COLOR,
 });
-const parkingLotMaterial = new THREE.MeshStandardMaterial({
-  color: PARKING_LOT_COLOR,
-});
 
 registerDisposable(cityGroundMaterial);
-registerDisposable(parkingLotMaterial);
 
 // Ring road dimensions (for building exclusion zone)
 const RING_ROAD_MARGIN = 5;
@@ -144,36 +137,38 @@ export const City = memo(function City() {
     return result;
   }, []);
 
-  // Generate street light positions
+  // Generate street light positions along the park perimeter
+  // 16 lights total: 5 per side with shared corners
+  // Park is a 4x4 block grid (200m x 200m)
   const streetLightPositions = useMemo(() => {
     const positions: Position3D[] = [];
-    const gridStart = -CITY_SIZE / 2;
-    const gridEnd = CITY_SIZE / 2;
-    const lightOffset = ROAD_WIDTH / 2 + SIDEWALK_WIDTH + 1;
 
-    // Place lights at grid intersections outside the dome zone
-    for (let x = gridStart; x <= gridEnd; x += BLOCK_SIZE) {
-      for (let z = gridStart; z <= gridEnd; z += BLOCK_SIZE) {
-        // Skip positions inside the ring road area
-        if (
-          Math.abs(x) < RING_HALF_WIDTH + BLOCK_SIZE / 2 &&
-          Math.abs(z) < RING_HALF_LENGTH + BLOCK_SIZE / 2
-        ) {
-          continue;
-        }
+    // Park is 4 blocks × 4 blocks = 200m × 200m (square)
+    // Inset past the road (12m) and sidewalk (3m) to be on the park edge
+    const edgeInset = 12;
+    const halfSize = (BLOCK_SIZE * 4) / 2 - edgeInset; // 100m - 12m = 88m
 
-        // Place light at NE corner of intersection
-        positions.push([x + lightOffset, 0, z - lightOffset]);
-      }
-    }
+    // 5 lights per side means 4 segments per side
+    // Corners are shared, so we place corners first, then 3 lights between each pair
 
-    // Lights around the dome perimeter (on the plaza)
-    const numDomeLights = 16;
-    for (let i = 0; i < numDomeLights; i++) {
-      const angle = (i / numDomeLights) * Math.PI * 2;
-      const px = Math.cos(angle) * (DOME_WIDTH / 2 + DOME_BUFFER - 5);
-      const pz = Math.sin(angle) * (DOME_LENGTH / 2 + DOME_BUFFER - 5);
-      positions.push([px, 0, pz]);
+    // 4 corner lights
+    positions.push([halfSize, 0, halfSize]); // NE
+    positions.push([-halfSize, 0, halfSize]); // NW
+    positions.push([halfSize, 0, -halfSize]); // SE
+    positions.push([-halfSize, 0, -halfSize]); // SW
+
+    // 3 lights between corners on each side (12 total)
+    for (let i = 1; i <= 3; i++) {
+      const t = i / 4; // 0.25, 0.5, 0.75
+
+      // East side (x = halfSize)
+      positions.push([halfSize, 0, halfSize - t * halfSize * 2]);
+      // West side (x = -halfSize)
+      positions.push([-halfSize, 0, halfSize - t * halfSize * 2]);
+      // North side (z = halfSize)
+      positions.push([halfSize - t * halfSize * 2, 0, halfSize]);
+      // South side (z = -halfSize)
+      positions.push([halfSize - t * halfSize * 2, 0, -halfSize]);
     }
 
     return positions;
@@ -189,18 +184,6 @@ export const City = memo(function City() {
       >
         <planeGeometry args={[CITY_SIZE, CITY_SIZE]} />
         <primitive object={cityGroundMaterial} attach="material" />
-      </mesh>
-
-      {/* Plaza around dome */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.05, 0]}
-        receiveShadow
-      >
-        <planeGeometry
-          args={[DOME_WIDTH + DOME_BUFFER * 2, DOME_LENGTH + DOME_BUFFER * 2]}
-        />
-        <primitive object={parkingLotMaterial} attach="material" />
       </mesh>
 
       {/* Road system (new tile-based implementation) */}

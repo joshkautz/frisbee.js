@@ -1,11 +1,7 @@
 import { memo, useMemo } from "react";
 import { ECS, homePlayers, awayPlayers } from "@/ecs";
+import type { TeamProps } from "@/types";
 import { Player } from "./Player";
-
-interface TeamProps {
-  team: "home" | "away";
-  color: number;
-}
 
 export const Team = memo(function Team({ team, color }: TeamProps) {
   // Use the appropriate pre-defined query based on team

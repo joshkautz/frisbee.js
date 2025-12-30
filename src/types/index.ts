@@ -30,8 +30,8 @@ export {
 // Component prop types
 export {
   type BuildingProps,
-  type RoadProps,
   type StreetLightProps,
+  type EndZoneSensorProps,
   type PlayerProps,
   type TeamProps,
   type CameraControlsProps,

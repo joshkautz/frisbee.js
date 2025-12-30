@@ -28,6 +28,7 @@ import {
   HEAVY_GUARD_PENALTY,
   LOOSE_COVER_PENALTY,
   END_ZONE_PREFERENCE_WEIGHT,
+  CUT_CANDIDATES,
 } from "@/constants";
 import {
   distance2D,
@@ -56,7 +57,7 @@ function findOpenSpace(
   const candidates: Position[] = [];
 
   // Try cutting towards the end zone
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < CUT_CANDIDATES; i++) {
     const angle = (Math.random() - 0.5) * Math.PI;
     const dist = 10 + Math.random() * 15;
     candidates.push(

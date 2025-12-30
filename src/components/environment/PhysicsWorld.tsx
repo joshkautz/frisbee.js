@@ -7,6 +7,7 @@ import {
   DOME_LENGTH,
   DOME_WIDTH,
 } from "@/constants";
+import type { EndZoneSensorProps } from "@/types";
 import { useSimulationStore } from "@/stores";
 
 /**
@@ -16,10 +17,7 @@ import { useSimulationStore } from "@/stores";
 const EndZoneSensor = memo(function EndZoneSensor({
   team,
   position,
-}: {
-  team: "home" | "away";
-  position: [number, number, number];
-}) {
+}: EndZoneSensorProps) {
   const score = useSimulationStore((s) => s.score);
   const phase = useSimulationStore((s) => s.phase);
 

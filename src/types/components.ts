@@ -32,24 +32,19 @@ export interface BuildingProps {
 }
 
 /**
- * Props for the Road component.
- * @deprecated Road component replaced by RoadSystem
- */
-export interface RoadProps {
-  /** Position as [x, y, z] tuple */
-  position: Vector3Tuple;
-  /** Road width */
-  width: number;
-  /** Road length */
-  length: number;
-  /** Rotation in radians */
-  rotation?: number;
-}
-
-/**
  * Props for the StreetLight component.
  */
 export interface StreetLightProps {
+  /** Position as [x, y, z] tuple */
+  position: Vector3Tuple;
+}
+
+/**
+ * Props for the EndZoneSensor component.
+ */
+export interface EndZoneSensorProps {
+  /** Which team scores when disc enters this zone */
+  team: "home" | "away";
   /** Position as [x, y, z] tuple */
   position: Vector3Tuple;
 }

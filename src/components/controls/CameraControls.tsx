@@ -12,12 +12,7 @@ import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { CITY_SIZE } from "@/constants";
-
-interface CameraControlsProps {
-  minDistance?: number;
-  maxDistance?: number;
-  maxPolarAngle?: number;
-}
+import type { CameraControlsProps } from "@/types";
 
 // Camera bounds (half the city size gives reasonable limits)
 const CAMERA_BOUNDS = CITY_SIZE / 2 - 50;

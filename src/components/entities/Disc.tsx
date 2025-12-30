@@ -10,6 +10,7 @@ import {
   DISC_HEIGHT,
   DISC_COLOR,
   DISC_RIM_COLOR,
+  AIR_RESISTANCE,
 } from "@/constants";
 import { disc as discQuery, ECS, registerDisposable, type Entity } from "@/ecs";
 import { useReducedMotion } from "@/hooks";
@@ -60,8 +61,10 @@ function DiscRenderer({ entity }: { entity: Entity }) {
 
       // Apply air resistance (drag)
       const vel = rb.linvel();
-      const drag = 0.98;
-      rb.setLinvel({ x: vel.x * drag, y: vel.y, z: vel.z * drag }, true);
+      rb.setLinvel(
+        { x: vel.x * AIR_RESISTANCE, y: vel.y, z: vel.z * AIR_RESISTANCE },
+        true
+      );
 
       // Spin while in flight (skip if reduced motion preferred)
       if (!prefersReducedMotion) {
