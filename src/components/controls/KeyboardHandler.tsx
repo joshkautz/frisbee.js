@@ -1,10 +1,22 @@
+/**
+ * Keyboard input handler for game controls.
+ *
+ * Uses drei's KeyboardControls for Zustand-powered input management.
+ *
+ * @module components/controls/KeyboardHandler
+ */
+
 import { useEffect, useRef } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useSimulationStore } from "@/stores";
 
 /**
  * Handles keyboard input for game controls.
- * Uses drei's KeyboardControls for Zustand-powered input management.
+ *
+ * Supports:
+ * - Space: Toggle pause
+ * - Arrow Up/W: Increase simulation speed
+ * - Arrow Down/S: Decrease simulation speed
  */
 export function KeyboardHandler() {
   const setIsPaused = useSimulationStore((s) => s.setIsPaused);

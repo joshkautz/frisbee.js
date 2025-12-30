@@ -1,3 +1,12 @@
+/**
+ * Error boundary component for graceful error handling.
+ *
+ * Catches JavaScript errors anywhere in the child component tree,
+ * logs errors in development, and displays a fallback UI.
+ *
+ * @module components/core/ErrorBoundary
+ */
+
 import { Component, type ReactNode, type ErrorInfo } from "react";
 
 interface Props {
@@ -10,6 +19,14 @@ interface State {
   error: Error | null;
 }
 
+/**
+ * React Error Boundary for catching and handling runtime errors.
+ *
+ * @example
+ * <ErrorBoundary fallback={<div>Something went wrong</div>}>
+ *   <MyComponent />
+ * </ErrorBoundary>
+ */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);

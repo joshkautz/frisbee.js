@@ -18,3 +18,6 @@ export * from "./random";
 
 // Material factory (Three.js materials with caching)
 export * from "./materials";
+
+// Screen-space projection utilities
+export * from "./projection";

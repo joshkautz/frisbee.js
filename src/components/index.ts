@@ -4,17 +4,23 @@
  * @module components
  */
 
+// Core application components
+export * from "./core";
+
+// Input and camera controls
+export * from "./controls";
+
 // Main game component
 export * from "./game";
 
-// Core components (to be moved to subfolders in Phase 6)
-export { ErrorBoundary } from "./ErrorBoundary";
-export { CameraControls } from "./CameraControls";
-export { SimulationController } from "./SimulationController";
-export { KeyboardHandler } from "./KeyboardHandler";
-
-// Feature modules
+// Game entities (players, disc)
 export * from "./entities";
+
+// Environment (field, dome, city, roads)
 export * from "./environment";
+
+// UI overlays
 export * from "./ui";
+
+// Debug tools
 export * from "./debug";

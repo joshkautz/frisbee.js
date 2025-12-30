@@ -1,3 +1,11 @@
+/**
+ * Camera controls component with keyboard panning.
+ *
+ * Provides orbit controls with WASD/arrow key panning within city bounds.
+ *
+ * @module components/controls/CameraControls
+ */
+
 import { useRef, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -14,6 +22,14 @@ interface CameraControlsProps {
 // Camera bounds (half the city size gives reasonable limits)
 const CAMERA_BOUNDS = CITY_SIZE / 2 - 50;
 
+/**
+ * Camera controls with orbit and keyboard panning.
+ *
+ * Supports:
+ * - Mouse orbit, zoom, and pan
+ * - WASD/Arrow keys for camera panning
+ * - Bounds clamping to stay within city limits
+ */
 export function CameraControls({
   minDistance = 40,
   maxDistance = 250,

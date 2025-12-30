@@ -21,9 +21,8 @@ import { TEAM_HOME_COLOR, TEAM_AWAY_COLOR, FOG_COLOR } from "@/constants";
 import { Field, Dome, City, Lighting, PhysicsWorld } from "../environment";
 import { Team, Disc } from "../entities";
 import { Scoreboard, MobileControls } from "../ui";
-import { CameraControls } from "../CameraControls";
-import { SimulationController } from "../SimulationController";
-import { KeyboardHandler } from "../KeyboardHandler";
+import { CameraControls, KeyboardHandler } from "../controls";
+import { SimulationController } from "../core";
 import { ScaleReference, DimensionsPanel } from "../debug";
 import { useLevaControls } from "./useLevaControls";
 
