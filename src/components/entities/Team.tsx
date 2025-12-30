@@ -1,16 +1,25 @@
-import { PLAYERS_PER_TEAM, FIELD_WIDTH } from "@/constants";
-import type { TeamProps } from "@/types";
+import { memo, useMemo } from "react";
+import { ECS, homePlayers, awayPlayers } from "@/ecs";
 import { Player } from "./Player";
 
-export function Team({ color, startZ }: TeamProps) {
-  const spacing = FIELD_WIDTH / (PLAYERS_PER_TEAM + 1);
+interface TeamProps {
+  team: "home" | "away";
+  color: number;
+}
+
+export const Team = memo(function Team({ team, color }: TeamProps) {
+  // Use the appropriate pre-defined query based on team
+  const query = useMemo(
+    () => (team === "home" ? homePlayers : awayPlayers),
+    [team]
+  );
 
   return (
     <group>
-      {Array.from({ length: PLAYERS_PER_TEAM }, (_, i) => {
-        const x = -FIELD_WIDTH / 2 + spacing * (i + 1);
-        return <Player key={i} position={[x, 0, startZ]} color={color} />;
-      })}
+      {/* ECS.Entities automatically subscribes to entity changes - no polling! */}
+      <ECS.Entities in={query}>
+        {(entity) => <Player key={entity.id} entity={entity} color={color} />}
+      </ECS.Entities>
     </group>
   );
-}
+});

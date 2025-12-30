@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
 import {
@@ -13,7 +13,25 @@ import {
 } from "@/constants";
 import { getPointOnPerimeter, generateAnglesWithCorners } from "@/utils";
 
-export function Dome() {
+// Shared materials for dome (created once)
+const domeFabricMaterial = new THREE.MeshStandardMaterial({
+  color: DOME_FABRIC_COLOR,
+  transparent: true,
+  opacity: 0.25,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+const domeFrameMaterial = new THREE.MeshStandardMaterial({
+  color: DOME_FRAME_COLOR,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.1,
+});
+const foundationMaterial = new THREE.MeshStandardMaterial({
+  color: DOME_FOUNDATION_COLOR,
+});
+
+export const Dome = memo(function Dome() {
   const domeGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
 
@@ -121,33 +139,26 @@ export function Dome() {
     <group>
       {/* Main dome fabric */}
       <mesh geometry={domeGeometry}>
-        <meshStandardMaterial
-          color={DOME_FABRIC_COLOR}
-          transparent
-          opacity={0.25}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
+        <primitive object={domeFabricMaterial} attach="material" />
       </mesh>
 
       {/* Dome frame/ribs */}
       <mesh geometry={domeGeometry}>
-        <meshStandardMaterial
-          color={DOME_FRAME_COLOR}
-          wireframe
-          transparent
-          opacity={0.1}
-        />
+        <primitive object={domeFrameMaterial} attach="material" />
       </mesh>
 
       {/* Base outline */}
-      <Line points={baseOutlinePoints} color={DOME_OUTLINE_COLOR} lineWidth={2} />
+      <Line
+        points={baseOutlinePoints}
+        color={DOME_OUTLINE_COLOR}
+        lineWidth={2}
+      />
 
       {/* Foundation */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
         <shapeGeometry args={[foundationShape]} />
-        <meshStandardMaterial color={DOME_FOUNDATION_COLOR} />
+        <primitive object={foundationMaterial} attach="material" />
       </mesh>
     </group>
   );
-}
+});

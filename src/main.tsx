@@ -1,6 +1,8 @@
-import { StrictMode } from "react";
+import { Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import { Game } from "@/components";
+import { Game, ErrorBoundary } from "@/components";
+import { useSimulationStore } from "@/stores";
+import { clearEntities } from "@/ecs";
 
 const container = document.getElementById("game-container");
 const loading = document.getElementById("loading");
@@ -9,12 +11,81 @@ if (!container) {
   throw new Error("Game container not found!");
 }
 
-if (loading) {
-  loading.hidden = true;
+// Hide loading indicator when React takes over
+function hideLoading() {
+  if (loading) {
+    loading.hidden = true;
+  }
 }
 
-createRoot(container).render(
-  <StrictMode>
-    <Game />
-  </StrictMode>
-);
+// Create the React root (only once)
+const root = createRoot(container);
+
+// Loading spinner shown during async component load
+function LoadingFallback() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Loading game"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        backgroundColor: "#1a1a2e",
+        color: "#fff",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            border: "4px solid rgba(255,255,255,0.2)",
+            borderTopColor: "#4caf50",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            margin: "0 auto 16px",
+          }}
+        />
+        <p>Loading game...</p>
+      </div>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function render() {
+  root.render(
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingFallback />}>
+        <Game />
+      </Suspense>
+    </ErrorBoundary>
+  );
+  hideLoading();
+}
+
+render();
+
+// Vite HMR handling - properly cleanup before hot reload
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    // Cleanup before re-render
+    clearEntities();
+    useSimulationStore.getState().reset();
+    render();
+  });
+
+  import.meta.hot.dispose(() => {
+    // Cleanup when module is disposed
+    clearEntities();
+    useSimulationStore.getState().reset();
+  });
+}

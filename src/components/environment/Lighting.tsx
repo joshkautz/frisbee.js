@@ -13,8 +13,8 @@ export function Lighting() {
         angle={Math.PI / 3}
         penumbra={0.5}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
       />
       <spotLight
         position={[0, 24, DOME_LENGTH / 4]}
@@ -22,8 +22,8 @@ export function Lighting() {
         angle={Math.PI / 3}
         penumbra={0.5}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
       />
       <spotLight
         position={[-DOME_WIDTH / 3, 24, 0]}
@@ -31,6 +31,8 @@ export function Lighting() {
         angle={Math.PI / 3}
         penumbra={0.5}
         castShadow
+        shadow-mapSize-width={512}
+        shadow-mapSize-height={512}
       />
       <spotLight
         position={[DOME_WIDTH / 3, 24, 0]}
@@ -38,6 +40,8 @@ export function Lighting() {
         angle={Math.PI / 3}
         penumbra={0.5}
         castShadow
+        shadow-mapSize-width={512}
+        shadow-mapSize-height={512}
       />
 
       {/* Fill lights */}
@@ -45,7 +49,11 @@ export function Lighting() {
       <directionalLight position={[50, 30, 0]} intensity={0.3} />
 
       {/* Hemisphere light */}
-      <hemisphereLight args={[0x606080, 0x202020, 0.4]} />
+      <hemisphereLight
+        color={0x606080}
+        groundColor={0x202020}
+        intensity={0.4}
+      />
 
       {/* Moonlight */}
       <directionalLight

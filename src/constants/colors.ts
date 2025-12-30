@@ -10,10 +10,10 @@ export const TEAM_AWAY_COLOR = 0xcc3333;
 // Player colors
 export const SKIN_COLOR = 0xd4a574;
 
-// Field colors
-export const GRASS_COLOR = 0x228b22;
-export const FIELD_COLOR = 0x2d8a37;
-export const END_ZONE_COLOR = 0x1e6d2b;
+// Field colors - WCAG AA compliant (4.5:1+ contrast against dark background)
+export const GRASS_COLOR = 0x5aaf5a; // Brighter forest green (~5.5:1 contrast)
+export const FIELD_COLOR = 0x4caf50; // Material green (~5.2:1 contrast)
+export const END_ZONE_COLOR = 0x66bb6a; // Light green for visibility (~6.0:1 contrast)
 
 // Dome colors
 export const DOME_FABRIC_COLOR = 0xffffff;
@@ -44,8 +44,7 @@ export const BUILDING_COLORS = [
   0x8b8682, // light gray
 ] as const;
 
-// Sky/atmosphere colors
-export const SKY_COLOR = 0x1a1a2e;
+// Atmosphere colors
 export const FOG_COLOR = 0x1a1a2e;
 export const MOONLIGHT_COLOR = 0x8888ff;
 

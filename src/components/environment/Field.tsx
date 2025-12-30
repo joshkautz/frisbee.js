@@ -1,3 +1,5 @@
+import { memo } from "react";
+import * as THREE from "three";
 import { Line } from "@react-three/drei";
 import {
   FIELD_LENGTH,
@@ -9,8 +11,20 @@ import {
   FIELD_COLOR,
   END_ZONE_COLOR,
 } from "@/constants";
+import { registerDisposable } from "@/ecs";
 
-export function Field() {
+// Shared materials for field surfaces (created once, disposed on HMR)
+const grassMaterial = new THREE.MeshStandardMaterial({ color: GRASS_COLOR });
+const fieldMaterial = new THREE.MeshStandardMaterial({ color: FIELD_COLOR });
+const endZoneMaterial = new THREE.MeshStandardMaterial({
+  color: END_ZONE_COLOR,
+});
+
+registerDisposable(grassMaterial);
+registerDisposable(fieldMaterial);
+registerDisposable(endZoneMaterial);
+
+export const Field = memo(function Field() {
   const playingFieldStart = -FIELD_LENGTH / 2 + END_ZONE_DEPTH;
   const playingFieldEnd = FIELD_LENGTH / 2 - END_ZONE_DEPTH;
 
@@ -41,13 +55,13 @@ export function Field() {
         receiveShadow
       >
         <planeGeometry args={[DOME_WIDTH, DOME_LENGTH]} />
-        <meshStandardMaterial color={GRASS_COLOR} />
+        <primitive object={grassMaterial} attach="material" />
       </mesh>
 
       {/* Main playing surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[FIELD_WIDTH, FIELD_LENGTH]} />
-        <meshStandardMaterial color={FIELD_COLOR} />
+        <primitive object={fieldMaterial} attach="material" />
       </mesh>
 
       {/* Near end zone */}
@@ -57,7 +71,7 @@ export function Field() {
         receiveShadow
       >
         <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
-        <meshStandardMaterial color={END_ZONE_COLOR} />
+        <primitive object={endZoneMaterial} attach="material" />
       </mesh>
 
       {/* Far end zone */}
@@ -67,7 +81,7 @@ export function Field() {
         receiveShadow
       >
         <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
-        <meshStandardMaterial color={END_ZONE_COLOR} />
+        <primitive object={endZoneMaterial} attach="material" />
       </mesh>
 
       {/* Field lines */}
@@ -89,4 +103,4 @@ export function Field() {
       />
     </group>
   );
-}
+});

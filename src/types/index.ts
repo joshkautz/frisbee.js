@@ -1,48 +1,38 @@
-import * as THREE from "three";
-
 /**
- * Common type definitions used throughout the game
+ * Central type definitions for the frisbee.js project.
+ *
+ * Re-exports all types from specialized modules:
+ * - vectors: Vector3Tuple, Vector3Object, Position3D
+ * - game: GamePhase, Team, SimulationState
+ * - components: BuildingProps, PlayerProps, TeamProps, etc.
+ *
+ * @module types
  */
 
-// 3D position tuple
-export type Position3D = [number, number, number];
+// Vector and position types
+export {
+  type Vector3Tuple,
+  type Vector3Object,
+  type Position3D,
+  tupleToObject,
+  objectToTuple,
+} from "./vectors";
 
-// Player props
-export interface PlayerProps {
-  position: Position3D;
-  color: number;
-  velocity?: THREE.Vector3;
-}
+// Game state types
+export {
+  type GamePhase,
+  type Team,
+  type PlayerRole,
+  type AIState,
+  type SimulationState,
+} from "./game";
 
-// Team props
-export interface TeamProps {
-  color: number;
-  startZ: number;
-}
-
-// Disc props
-export interface DiscProps {
-  position: Position3D;
-}
-
-// Building props for city generation
-export interface BuildingProps {
-  position: Position3D;
-  width: number;
-  depth: number;
-  height: number;
-  color: number;
-}
-
-// Road props
-export interface RoadProps {
-  position: Position3D;
-  width: number;
-  length: number;
-  rotation?: number;
-}
-
-// Street light props
-export interface StreetLightProps {
-  position: Position3D;
-}
+// Component prop types
+export {
+  type BuildingProps,
+  type RoadProps,
+  type StreetLightProps,
+  type PlayerProps,
+  type TeamProps,
+  type CameraControlsProps,
+} from "./components";

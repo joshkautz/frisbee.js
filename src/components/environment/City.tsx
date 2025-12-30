@@ -1,138 +1,179 @@
-import { useMemo } from "react";
+/**
+ * City environment component.
+ *
+ * Renders the city surrounding the dome including:
+ * - Ground surfaces (city ground, dome plaza)
+ * - Road network (using the new tile-based RoadSystem)
+ * - Buildings (procedurally generated)
+ * - Street lights
+ */
+
+import { useMemo, memo } from "react";
+import * as THREE from "three";
 import {
   DOME_LENGTH,
   DOME_WIDTH,
   CITY_SIZE,
   BLOCK_SIZE,
+  BLOCK_INNER_SIZE,
   BUILDING_GAP,
   ROAD_WIDTH,
+  SIDEWALK_WIDTH,
+  DOME_BUFFER,
   BUILDING_MIN_WIDTH,
   BUILDING_MAX_WIDTH,
+  BUILDING_MIN_DEPTH,
+  BUILDING_MAX_DEPTH,
   BUILDING_MIN_HEIGHT,
   BUILDING_MAX_HEIGHT,
-  STREET_LIGHT_COUNT,
   CITY_GROUND_COLOR,
   PARKING_LOT_COLOR,
   BUILDING_COLORS,
+  CITY_SEED,
 } from "@/constants";
-import type { BuildingProps, RoadProps, Position3D } from "@/types";
+import { registerDisposable } from "@/ecs";
+import type { BuildingProps, Position3D } from "@/types";
 import { createSeededRandom } from "@/utils";
 import { Building } from "./Building";
-import { Road } from "./Road";
 import { StreetLight } from "./StreetLight";
+import { RoadSystem } from "./roads";
 
-export function City() {
+// Shared materials for city ground surfaces (created once, disposed on HMR)
+const cityGroundMaterial = new THREE.MeshStandardMaterial({
+  color: CITY_GROUND_COLOR,
+});
+const parkingLotMaterial = new THREE.MeshStandardMaterial({
+  color: PARKING_LOT_COLOR,
+});
+
+registerDisposable(cityGroundMaterial);
+registerDisposable(parkingLotMaterial);
+
+// Ring road dimensions (for building exclusion zone)
+const RING_ROAD_MARGIN = 5;
+const RING_HALF_WIDTH = DOME_WIDTH / 2 + DOME_BUFFER + RING_ROAD_MARGIN;
+const RING_HALF_LENGTH = DOME_LENGTH / 2 + DOME_BUFFER + RING_ROAD_MARGIN;
+
+export const City = memo(function City() {
+  // Generate buildings in valid blocks (outside the ring road)
   const buildings = useMemo(() => {
     const result: BuildingProps[] = [];
-    const random = createSeededRandom(12345);
+    const random = createSeededRandom(CITY_SEED);
+    const gridStart = -CITY_SIZE / 2 + BLOCK_SIZE / 2;
+    const gridEnd = CITY_SIZE / 2 - BLOCK_SIZE / 2;
 
-    const domeRadiusX = DOME_WIDTH / 2 + 20;
-    const domeRadiusZ = DOME_LENGTH / 2 + 20;
-
-    for (let x = -CITY_SIZE / 2; x < CITY_SIZE / 2; x += BLOCK_SIZE) {
-      for (let z = -CITY_SIZE / 2; z < CITY_SIZE / 2; z += BLOCK_SIZE) {
-        // Skip if inside dome area
-        const distX = Math.abs(x) / domeRadiusX;
-        const distZ = Math.abs(z) / domeRadiusZ;
-        if (distX * distX + distZ * distZ < 1.2) continue;
-
-        // Skip road intersections
+    for (let blockX = gridStart; blockX <= gridEnd; blockX += BLOCK_SIZE) {
+      for (let blockZ = gridStart; blockZ <= gridEnd; blockZ += BLOCK_SIZE) {
+        // Skip blocks inside the ring road
         if (
-          Math.abs(x % BLOCK_SIZE) < ROAD_WIDTH ||
-          Math.abs(z % BLOCK_SIZE) < ROAD_WIDTH
-        )
+          blockX > -RING_HALF_WIDTH - BLOCK_SIZE / 2 &&
+          blockX < RING_HALF_WIDTH + BLOCK_SIZE / 2 &&
+          blockZ > -RING_HALF_LENGTH - BLOCK_SIZE / 2 &&
+          blockZ < RING_HALF_LENGTH + BLOCK_SIZE / 2
+        ) {
           continue;
+        }
 
-        const width =
-          BUILDING_MIN_WIDTH + random() * (BUILDING_MAX_WIDTH - BUILDING_MIN_WIDTH);
-        const depth =
-          BUILDING_MIN_WIDTH + random() * (BUILDING_MAX_WIDTH - BUILDING_MIN_WIDTH);
-        const height =
-          BUILDING_MIN_HEIGHT +
-          random() * (BUILDING_MAX_HEIGHT - BUILDING_MIN_HEIGHT);
-        const color =
-          BUILDING_COLORS[Math.floor(random() * BUILDING_COLORS.length)];
+        const blockLeft = blockX - BLOCK_INNER_SIZE / 2;
+        const blockRight = blockX + BLOCK_INNER_SIZE / 2;
+        const blockTop = blockZ - BLOCK_INNER_SIZE / 2;
+        const blockBottom = blockZ + BLOCK_INNER_SIZE / 2;
 
-        const offsetX = x + BUILDING_GAP + width / 2;
-        const offsetZ = z + BUILDING_GAP + depth / 2;
+        let currentX = blockLeft + BUILDING_GAP;
 
-        result.push({
-          position: [offsetX, 0, offsetZ],
-          width,
-          depth,
-          height,
-          color,
-        });
+        while (currentX < blockRight - BUILDING_MIN_WIDTH) {
+          const width =
+            BUILDING_MIN_WIDTH +
+            random() * (BUILDING_MAX_WIDTH - BUILDING_MIN_WIDTH);
+          const adjustedWidth = Math.min(
+            width,
+            blockRight - currentX - BUILDING_GAP
+          );
+
+          if (adjustedWidth < BUILDING_MIN_WIDTH) break;
+
+          // North-facing buildings
+          const depth1 =
+            BUILDING_MIN_DEPTH +
+            random() * (BUILDING_MAX_DEPTH - BUILDING_MIN_DEPTH);
+          const height1 =
+            BUILDING_MIN_HEIGHT +
+            random() * (BUILDING_MAX_HEIGHT - BUILDING_MIN_HEIGHT);
+          const color1 =
+            BUILDING_COLORS[Math.floor(random() * BUILDING_COLORS.length)];
+
+          result.push({
+            position: [
+              currentX + adjustedWidth / 2,
+              0,
+              blockBottom - depth1 / 2 - BUILDING_GAP,
+            ],
+            width: adjustedWidth,
+            depth: depth1,
+            height: height1,
+            color: color1,
+          });
+
+          // South-facing buildings
+          const depth2 =
+            BUILDING_MIN_DEPTH +
+            random() * (BUILDING_MAX_DEPTH - BUILDING_MIN_DEPTH);
+          const height2 =
+            BUILDING_MIN_HEIGHT +
+            random() * (BUILDING_MAX_HEIGHT - BUILDING_MIN_HEIGHT);
+          const color2 =
+            BUILDING_COLORS[Math.floor(random() * BUILDING_COLORS.length)];
+
+          result.push({
+            position: [
+              currentX + adjustedWidth / 2,
+              0,
+              blockTop + depth2 / 2 + BUILDING_GAP,
+            ],
+            width: adjustedWidth,
+            depth: depth2,
+            height: height2,
+            color: color2,
+          });
+
+          currentX += adjustedWidth + BUILDING_GAP;
+        }
       }
     }
 
     return result;
   }, []);
 
-  const roads = useMemo(() => {
-    const result: RoadProps[] = [];
-
-    // Horizontal roads
-    for (let z = -CITY_SIZE / 2; z <= CITY_SIZE / 2; z += BLOCK_SIZE) {
-      if (Math.abs(z) < DOME_LENGTH / 2 + 30) continue;
-      result.push({
-        position: [0, 0, z],
-        width: ROAD_WIDTH,
-        length: CITY_SIZE,
-        rotation: Math.PI / 2,
-      });
-    }
-
-    // Vertical roads
-    for (let x = -CITY_SIZE / 2; x <= CITY_SIZE / 2; x += BLOCK_SIZE) {
-      if (Math.abs(x) < DOME_WIDTH / 2 + 30) continue;
-      result.push({
-        position: [x, 0, 0],
-        width: ROAD_WIDTH,
-        length: CITY_SIZE,
-        rotation: 0,
-      });
-    }
-
-    // Ring road around dome
-    const ringRadius = Math.max(DOME_WIDTH, DOME_LENGTH) / 2 + 25;
-    result.push({
-      position: [0, 0, -ringRadius],
-      width: ROAD_WIDTH,
-      length: DOME_WIDTH + 60,
-      rotation: Math.PI / 2,
-    });
-    result.push({
-      position: [0, 0, ringRadius],
-      width: ROAD_WIDTH,
-      length: DOME_WIDTH + 60,
-      rotation: Math.PI / 2,
-    });
-    result.push({
-      position: [-ringRadius + 20, 0, 0],
-      width: ROAD_WIDTH,
-      length: DOME_LENGTH + 60,
-      rotation: 0,
-    });
-    result.push({
-      position: [ringRadius - 20, 0, 0],
-      width: ROAD_WIDTH,
-      length: DOME_LENGTH + 60,
-      rotation: 0,
-    });
-
-    return result;
-  }, []);
-
+  // Generate street light positions
   const streetLightPositions = useMemo(() => {
     const positions: Position3D[] = [];
-    const radius = Math.max(DOME_WIDTH, DOME_LENGTH) / 2 + 15;
+    const gridStart = -CITY_SIZE / 2;
+    const gridEnd = CITY_SIZE / 2;
+    const lightOffset = ROAD_WIDTH / 2 + SIDEWALK_WIDTH + 1;
 
-    for (let i = 0; i < STREET_LIGHT_COUNT; i++) {
-      const angle = (i / STREET_LIGHT_COUNT) * Math.PI * 2;
-      const x = Math.cos(angle) * radius * 0.7;
-      const z = Math.sin(angle) * radius;
-      positions.push([x, 0, z]);
+    // Place lights at grid intersections outside the dome zone
+    for (let x = gridStart; x <= gridEnd; x += BLOCK_SIZE) {
+      for (let z = gridStart; z <= gridEnd; z += BLOCK_SIZE) {
+        // Skip positions inside the ring road area
+        if (
+          Math.abs(x) < RING_HALF_WIDTH + BLOCK_SIZE / 2 &&
+          Math.abs(z) < RING_HALF_LENGTH + BLOCK_SIZE / 2
+        ) {
+          continue;
+        }
+
+        // Place light at NE corner of intersection
+        positions.push([x + lightOffset, 0, z - lightOffset]);
+      }
+    }
+
+    // Lights around the dome perimeter (on the plaza)
+    const numDomeLights = 16;
+    for (let i = 0; i < numDomeLights; i++) {
+      const angle = (i / numDomeLights) * Math.PI * 2;
+      const px = Math.cos(angle) * (DOME_WIDTH / 2 + DOME_BUFFER - 5);
+      const pz = Math.sin(angle) * (DOME_LENGTH / 2 + DOME_BUFFER - 5);
+      positions.push([px, 0, pz]);
     }
 
     return positions;
@@ -147,23 +188,23 @@ export function City() {
         receiveShadow
       >
         <planeGeometry args={[CITY_SIZE, CITY_SIZE]} />
-        <meshStandardMaterial color={CITY_GROUND_COLOR} />
+        <primitive object={cityGroundMaterial} attach="material" />
       </mesh>
 
-      {/* Parking lot around dome */}
+      {/* Plaza around dome */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -0.05, 0]}
         receiveShadow
       >
-        <planeGeometry args={[DOME_WIDTH + 40, DOME_LENGTH + 40]} />
-        <meshStandardMaterial color={PARKING_LOT_COLOR} />
+        <planeGeometry
+          args={[DOME_WIDTH + DOME_BUFFER * 2, DOME_LENGTH + DOME_BUFFER * 2]}
+        />
+        <primitive object={parkingLotMaterial} attach="material" />
       </mesh>
 
-      {/* Roads */}
-      {roads.map((road, i) => (
-        <Road key={`road-${i}`} {...road} />
-      ))}
+      {/* Road system (new tile-based implementation) */}
+      <RoadSystem />
 
       {/* Buildings */}
       {buildings.map((building, i) => (
@@ -176,4 +217,4 @@ export function City() {
       ))}
     </group>
   );
-}
+});
