@@ -3,6 +3,16 @@
  *
  * Handles disc flight physics, catch detection, and scoring.
  *
+ * Physics Integration:
+ * - ECS entity is the source of truth for disc state
+ * - Physics rigid body is synced on throw (for collision detection during flight)
+ * - Physics body is not synced when disc lands/caught (not in flight)
+ *
+ * State Transitions:
+ * - [Held] --throwDisc()--> [InFlight] --land()--> [OnGround]
+ * - [InFlight] --catch()--> [Held]
+ * - [Held] --giveDiscTo()--> [Held] (possession transfer)
+ *
  * @module systems/discSystem
  */
 
@@ -15,12 +25,32 @@ import {
   DISC_LIFT_COEFFICIENT,
   DISC_LIFT_MIN_SPEED,
   CATCH_SUCCESS_RATE,
+  DISC_HELD_HEIGHT,
+  DISC_THROW_HEIGHT,
+  DISC_GROUND_LEVEL,
 } from "@/constants";
 import { isInEndZone, distanceSquared3D } from "@/utils";
 import type { Team } from "@/types";
 
 // Pre-compute squared catch radius for faster distance checks
 const CATCH_RADIUS_SQ = CATCH_RADIUS * CATCH_RADIUS;
+
+/**
+ * Reset all disc flight-related state to default values.
+ * Called when disc lands, is caught, or game resets.
+ */
+function resetDiscFlightState(discEntity: Entity): void {
+  if (!discEntity.disc || !discEntity.velocity) return;
+
+  discEntity.disc.inFlight = false;
+  discEntity.disc.thrownBy = null;
+  discEntity.disc.pullReceiverId = null;
+  discEntity.disc.targetPosition = null;
+  discEntity.disc.flightTime = 0;
+  discEntity.velocity.x = 0;
+  discEntity.velocity.y = 0;
+  discEntity.velocity.z = 0;
+}
 
 /**
  * Check if disc is in an end zone and handle scoring.
@@ -92,12 +122,9 @@ export function updateDiscFlight(delta: number): void {
   }
 
   // Check if disc hit the ground
-  if (discEntity.position.y <= 0.1) {
-    discEntity.position.y = 0.1;
-    discEntity.disc.inFlight = false;
-    discEntity.velocity.x = 0;
-    discEntity.velocity.y = 0;
-    discEntity.velocity.z = 0;
+  if (discEntity.position.y <= DISC_GROUND_LEVEL) {
+    discEntity.position.y = DISC_GROUND_LEVEL;
+    resetDiscFlightState(discEntity);
     state.turnover();
   }
 }
@@ -134,6 +161,7 @@ function checkForCatches(discEntity: Entity): void {
 
 /**
  * Complete a successful catch.
+ * Resets disc flight state and transfers possession to catcher.
  */
 function completeCatch(
   discEntity: Entity,
@@ -142,16 +170,12 @@ function completeCatch(
 ): void {
   if (!discEntity.disc || !discEntity.velocity || !player.player) return;
 
-  // Stop disc flight
-  discEntity.disc.inFlight = false;
-  discEntity.disc.thrownBy = null;
-  discEntity.velocity.x = 0;
-  discEntity.velocity.y = 0;
-  discEntity.velocity.z = 0;
+  // Stop disc flight and clear all flight-related state
+  resetDiscFlightState(discEntity);
 
   // Move disc to catcher's position
   discEntity.position.x = player.position.x;
-  discEntity.position.y = 1;
+  discEntity.position.y = DISC_HELD_HEIGHT;
   discEntity.position.z = player.position.z;
 
   // Clear old holder and set new holder (iterate directly over ECS query)
@@ -191,7 +215,7 @@ export function throwDisc(
 
     // Set disc position to thrower's release point
     discEntity.position.x = holder.position.x;
-    discEntity.position.y = 1.5;
+    discEntity.position.y = DISC_THROW_HEIGHT;
     discEntity.position.z = holder.position.z;
 
     // Record thrower (they cannot catch their own throw)
@@ -220,7 +244,11 @@ export function throwDisc(
   // Set flight state
   discEntity.disc.inFlight = true;
   discEntity.disc.flightTime = 0;
-  discEntity.disc.targetPosition = targetEntity?.position ?? null;
+  // Only update target position if a target entity is provided
+  // (preserves existing targetPosition set by pull system)
+  if (targetEntity) {
+    discEntity.disc.targetPosition = targetEntity.position;
+  }
 
   state.throwDisc();
 }
@@ -249,12 +277,11 @@ export function giveDiscTo(playerId: string): void {
   if (newHolder?.player) {
     newHolder.player.hasDisc = true;
 
-    // Move disc to holder
+    // Move disc to holder and reset flight state
     discEntity.position.x = newHolder.position.x;
-    discEntity.position.y = 1;
+    discEntity.position.y = DISC_HELD_HEIGHT;
     discEntity.position.z = newHolder.position.z;
-    discEntity.disc.inFlight = false;
-    discEntity.disc.thrownBy = null;
+    resetDiscFlightState(discEntity);
 
     state.setDiscHolder(playerId);
   }

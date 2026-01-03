@@ -39,6 +39,8 @@ export interface DiscComponent {
   flightTime: number;
   /** ID of the player who threw the disc (cannot catch their own throw) */
   thrownBy: string | null;
+  /** ID of the designated pull receiver (only this player should catch the pull) */
+  pullReceiverId: string | null;
 }
 
 /** AI component for player behavior and decision-making */
@@ -181,6 +183,7 @@ export function createDisc(x: number, y: number, z: number): Entity {
       targetPosition: null,
       flightTime: 0,
       thrownBy: null,
+      pullReceiverId: null,
     },
     physicsRef: { rigidBody: null },
     meshRef: { mesh: null },

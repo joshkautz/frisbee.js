@@ -19,6 +19,7 @@ export interface LevaControlValues {
   enableEffects: boolean;
   bloomIntensity: number;
   showScaleReference: boolean;
+  showThrowTargets: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export function useLevaControls(): LevaControlValues {
     enableEffects,
     bloomIntensity,
     showScaleReference,
+    showThrowTargets,
   } = useControls({
     Simulation: folder({
       isPaused: {
@@ -77,6 +79,10 @@ export function useLevaControls(): LevaControlValues {
         value: false,
         label: "Scale Reference",
       },
+      showThrowTargets: {
+        value: false,
+        label: "Throw Targets",
+      },
     }),
   });
 
@@ -107,5 +113,6 @@ export function useLevaControls(): LevaControlValues {
     enableEffects,
     bloomIntensity,
     showScaleReference,
+    showThrowTargets,
   };
 }

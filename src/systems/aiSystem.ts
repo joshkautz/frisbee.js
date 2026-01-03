@@ -36,13 +36,18 @@ import {
   LOOSE_COVER_PENALTY,
   END_ZONE_PREFERENCE_WEIGHT,
   CUT_CANDIDATES,
+  DISC_GRAVITY,
+  DISC_LIFT_COEFFICIENT,
+  END_ZONE_DEPTH,
 } from "@/constants";
 import {
   distanceSquared2D,
   clampToField,
   isInEndZone,
   getTeamDirection,
+  getEndZoneZ,
 } from "@/utils";
+import { FIELD_WIDTH } from "@/constants";
 
 // Pre-compute squared thresholds to avoid sqrt in hot loops
 const AI_MEDIUM_RANGE_SQ = AI_MEDIUM_RANGE * AI_MEDIUM_RANGE;
@@ -71,6 +76,7 @@ function findOpenSpace(
 ): Position {
   const team = player.player!.team;
   const direction = getTeamDirection(team);
+  const endZoneZ = getEndZoneZ(team);
 
   // Generate potential positions with full 360-degree spread
   const candidates: Position[] = [];
@@ -84,11 +90,29 @@ function findOpenSpace(
     const forwardBias = 0.3; // Slight preference toward end zone
     const zOffset = Math.cos(angle) * dist + direction * forwardBias * dist;
 
+    // Calculate candidate Z position
+    const candidateZ = player.position.z + zOffset;
+
+    // Check if this cut would put us in/near the endzone
+    const isEndzoneCut =
+      (direction > 0 && candidateZ > endZoneZ - 5) ||
+      (direction < 0 && candidateZ < endZoneZ + 5);
+
+    // For endzone cuts, spread across the full width of the field
+    // instead of just offsetting from current position
+    let candidateX: number;
+    if (isEndzoneCut) {
+      // Random position across full field width (with padding)
+      candidateX = (Math.random() - 0.5) * (FIELD_WIDTH - 4);
+    } else {
+      candidateX = player.position.x + Math.sin(angle) * dist;
+    }
+
     candidates.push(
       clampToField({
-        x: player.position.x + Math.sin(angle) * dist,
+        x: candidateX,
         y: 0,
-        z: player.position.z + zOffset,
+        z: candidateZ,
       })
     );
   }
@@ -221,6 +245,7 @@ function getDefensivePosition(defender: Entity, attacker: Entity): Position {
 export function updateAI(delta: number): void {
   const state = useSimulationStore.getState();
 
+  // Only pause AI during score celebration or before game starts
   if (state.isPaused || state.phase === "score" || state.phase === "pregame") {
     return;
   }
@@ -232,8 +257,11 @@ export function updateAI(delta: number): void {
   const homeTeam = homePlayers.entities;
   const awayTeam = awayPlayers.entities;
 
-  const offensiveTeam = state.possession === "home" ? homeTeam : awayTeam;
-  const defensiveTeam = state.possession === "home" ? awayTeam : homeTeam;
+  // During pull phase, the RECEIVING team (opposite of possession) should act as offense
+  // because they need to catch/pick up the disc
+  const isPullPhase =
+    state.phase === "pull" ||
+    (discEntity?.disc?.pullReceiverId !== null && discEntity?.disc?.inFlight);
 
   // Iterate directly over ECS query (allPlayers already filters for entities with player + position + ai)
   for (const player of allPlayers) {
@@ -242,9 +270,17 @@ export function updateAI(delta: number): void {
     // Update decision timer
     player.ai.decision -= scaledDelta;
 
-    const isOffense = player.player.team === state.possession;
-    const teammates = isOffense ? offensiveTeam : defensiveTeam;
-    const opponents = isOffense ? defensiveTeam : offensiveTeam;
+    // During pull phase:
+    // - Receiving team (opposite of possession) is OFFENSE (they catch and start passing)
+    // - Pulling team (possession) is DEFENSE (they run down to defend)
+    // Normal play: possession team is offense
+    const isOffense = isPullPhase
+      ? player.player.team !== state.possession // Pull: receiving team is offense
+      : player.player.team === state.possession; // Normal: possession team is offense
+
+    // Teammates and opponents are based on actual team membership, not offense/defense role
+    const teammates = player.player.team === "home" ? homeTeam : awayTeam;
+    const opponents = player.player.team === "home" ? awayTeam : homeTeam;
 
     // Make decisions periodically
     if (player.ai.decision <= 0) {
@@ -258,11 +294,62 @@ export function updateAI(delta: number): void {
           discEntity?.disc?.inFlight &&
           discEntity.disc.targetPosition
         ) {
-          // Disc in flight - try to catch
-          player.ai.state = "catching";
-          player.ai.targetPosition = discEntity.disc.targetPosition;
+          // Disc in flight - check if this player should catch it
+          const isPullReceiver = discEntity.disc.pullReceiverId === player.id;
+          // During pull, only designated receiver catches; otherwise any receiver can
+          const isDesignatedReceiver =
+            discEntity.disc.pullReceiverId === null || isPullReceiver;
+
+          if (isDesignatedReceiver) {
+            // This player is designated to catch (or no designation = regular throw)
+            player.ai.state = "catching";
+            player.ai.targetPosition = discEntity.disc.targetPosition;
+          } else {
+            // Not the designated receiver - set up for offense instead
+            player.ai.state = "cutting";
+            player.ai.targetPosition = findOpenSpace(
+              player,
+              teammates,
+              opponents
+            );
+          }
+        } else if (
+          state.phase === "turnover" &&
+          discEntity &&
+          !discEntity.disc?.inFlight
+        ) {
+          // Disc is on the ground after turnover - closest player runs to pick it up
+          const distToDisc = distanceSquared2D(
+            player.position,
+            discEntity.position
+          );
+
+          // Find if this player is closest to disc among teammates
+          let isClosest = true;
+          for (const tm of teammates) {
+            if (tm.id === player.id) continue;
+            const tmDist = distanceSquared2D(tm.position, discEntity.position);
+            if (tmDist < distToDisc) {
+              isClosest = false;
+              break;
+            }
+          }
+
+          if (isClosest) {
+            // Run to pick up the disc
+            player.ai.state = "catching";
+            player.ai.targetPosition = { ...discEntity.position };
+          } else {
+            // Other players set up for offense
+            player.ai.state = "cutting";
+            player.ai.targetPosition = findOpenSpace(
+              player,
+              teammates,
+              opponents
+            );
+          }
         } else {
-          // Cut to get open
+          // Disc not in flight - cut to get open
           player.ai.state = "cutting";
           player.ai.targetPosition = findOpenSpace(
             player,
@@ -274,7 +361,7 @@ export function updateAI(delta: number): void {
         // Defense
         player.ai.state = "defending";
         // Find player to defend (match by number for simplicity)
-        const mark = offensiveTeam.find(
+        const mark = opponents.find(
           (p) => p.player?.number === player.player?.number
         );
         if (mark) {
@@ -318,11 +405,92 @@ export function updateAI(delta: number): void {
 }
 
 /**
- * Handle disc throwing logic
+ * Calculate the velocity needed to throw the disc to a specific landing position.
+ *
+ * Uses projectile motion equations accounting for gravity and approximate lift.
+ * The disc releases at height 1.5m and should be catchable at ~1m height.
+ *
+ * @param from - Thrower position
+ * @param to - Target landing position
+ * @returns Velocity vector to reach the target
+ */
+function calculateThrowVelocity(from: Position, to: Position): Position {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+
+  // Prevent division by zero
+  if (horizontalDist < 0.1) {
+    return { x: 0, y: 5, z: 0 };
+  }
+
+  // Release height and target catch height
+  const releaseHeight = 1.5;
+  const catchHeight = 1.0;
+  const heightDiff = catchHeight - releaseHeight; // Usually negative (throwing down to catch)
+
+  // Choose throw speed based on distance (faster for longer throws)
+  // Typical frisbee throws: 15-30 m/s
+  const minSpeed = 15;
+  const maxSpeed = 28;
+  const throwSpeed = Math.min(
+    maxSpeed,
+    minSpeed + (horizontalDist / 40) * (maxSpeed - minSpeed)
+  );
+
+  // Estimate flight time based on horizontal distance and speed
+  const flightTime = horizontalDist / throwSpeed;
+
+  // Calculate required vertical velocity using projectile motion
+  // y = y0 + vy*t + 0.5*g*t^2
+  // Solving for vy: vy = (y - y0 - 0.5*g*t^2) / t
+  // Account for lift by reducing effective gravity
+  const effectiveGravity = DISC_GRAVITY * (1 - DISC_LIFT_COEFFICIENT * 2);
+  const vy =
+    (heightDiff - 0.5 * effectiveGravity * flightTime * flightTime) /
+    flightTime;
+
+  // Calculate horizontal velocity components
+  const vx = (dx / horizontalDist) * throwSpeed;
+  const vz = (dz / horizontalDist) * throwSpeed;
+
+  return { x: vx, y: vy, z: vz };
+}
+
+/**
+ * Generate a random target position within the opponent's endzone.
+ *
+ * @param team - The throwing team (targets opponent's endzone)
+ * @returns Random position within the endzone bounds
+ */
+function getRandomEndzoneTarget(team: "home" | "away"): Position {
+  const direction = getTeamDirection(team);
+  const halfLength = 50; // FIELD_LENGTH / 2
+  const halfWidth = 18.5; // FIELD_WIDTH / 2
+
+  // Endzone Z range (with small padding from lines)
+  const endzoneStart =
+    direction > 0 ? halfLength - END_ZONE_DEPTH + 2 : -halfLength + 2;
+  const endzoneEnd =
+    direction > 0 ? halfLength - 2 : -halfLength + END_ZONE_DEPTH - 2;
+  const targetZ = endzoneStart + Math.random() * (endzoneEnd - endzoneStart);
+
+  // Full width of field (with padding from sidelines)
+  const targetX = (Math.random() - 0.5) * (halfWidth * 2 - 4);
+
+  return { x: targetX, y: 1, z: targetZ };
+}
+
+/**
+ * Handle disc throwing logic.
+ *
+ * Picks a receiver, generates a random target position in the endzone,
+ * calculates the trajectory to land there, and sets the receiver running to catch.
  */
 export function handleDiscThrow(): {
   target: Entity;
   velocity: Position;
+  targetPosition: Position;
 } | null {
   const state = useSimulationStore.getState();
 
@@ -336,31 +504,51 @@ export function handleDiscThrow(): {
   }
   if (!thrower) return null;
 
+  const team = thrower.player!.team;
   const offensiveTeam =
     state.possession === "home" ? homePlayers.entities : awayPlayers.entities;
   const defensiveTeam =
     state.possession === "home" ? awayPlayers.entities : homePlayers.entities;
 
-  const target = findBestReceiver(thrower, offensiveTeam, defensiveTeam);
-  if (!target) return null;
+  // Find a receiver to throw to
+  const receiver = findBestReceiver(thrower, offensiveTeam, defensiveTeam);
+  if (!receiver) return null;
 
-  // Calculate throw velocity
-  const dx = target.position.x - thrower.position.x;
-  const dz = target.position.z - thrower.position.z;
-  const distSq = dx * dx + dz * dz;
+  // Determine target position:
+  // If receiver is in/near endzone, target a random spot in the endzone
+  // Otherwise, target the receiver's current position (with slight lead)
+  let targetPosition: Position;
+  const direction = getTeamDirection(team);
+  const endZoneZ = getEndZoneZ(team);
+  const isDeepThrow =
+    (direction > 0 && receiver.position.z > endZoneZ - 10) ||
+    (direction < 0 && receiver.position.z < endZoneZ + 10);
 
-  // Guard against division by zero (target at same position as thrower)
-  if (distSq < 0.01) return null; // 0.1^2 = 0.01
+  if (isDeepThrow) {
+    // Generate random target in the endzone
+    targetPosition = getRandomEndzoneTarget(team);
+  } else {
+    // Target receiver's position with slight lead based on their velocity
+    const leadTime = 0.5; // seconds
+    targetPosition = {
+      x: receiver.position.x + (receiver.velocity?.x ?? 0) * leadTime,
+      y: 1,
+      z: receiver.position.z + (receiver.velocity?.z ?? 0) * leadTime,
+    };
+  }
 
-  const dist = Math.sqrt(distSq);
-  const throwSpeed = 20 + Math.random() * 10; // Variable throw speed
+  // Calculate velocity to land at target position
+  const velocity = calculateThrowVelocity(thrower.position, targetPosition);
+
+  // Set receiver to run toward the target position
+  if (receiver.ai) {
+    receiver.ai.targetPosition = targetPosition;
+    receiver.ai.state = "catching";
+  }
 
   return {
-    target,
-    velocity: {
-      x: (dx / dist) * throwSpeed,
-      y: 2 + Math.random() * 2, // Arc
-      z: (dz / dist) * throwSpeed,
-    },
+    target: receiver,
+    velocity,
+    targetPosition,
   };
 }

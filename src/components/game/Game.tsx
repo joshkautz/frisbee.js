@@ -17,7 +17,7 @@ import { Team, Disc } from "../entities";
 import { Scoreboard, MobileControls, GameAnnouncer, HelpOverlay } from "../ui";
 import { CameraControls, KeyboardHandler } from "../controls";
 import { SimulationController } from "../core";
-import { ScaleReference, DimensionsPanel } from "../debug";
+import { ScaleReference, DimensionsPanel, ThrowTargetZone } from "../debug";
 import { useLevaControls } from "./useLevaControls";
 import { AdaptiveEffects, type QualityLevel } from "./AdaptiveEffects";
 
@@ -53,8 +53,13 @@ const KEYBOARD_MAP = [
  * - UI overlays and accessibility
  */
 export function Game() {
-  const { showStats, enableEffects, bloomIntensity, showScaleReference } =
-    useLevaControls();
+  const {
+    showStats,
+    enableEffects,
+    bloomIntensity,
+    showScaleReference,
+    showThrowTargets,
+  } = useLevaControls();
 
   // Adaptive quality based on performance monitoring
   const [quality, setQuality] = useState<QualityLevel>("high");
@@ -135,6 +140,7 @@ export function Game() {
 
           {/* Debug Tools */}
           {showScaleReference && <ScaleReference />}
+          {showThrowTargets && <ThrowTargetZone />}
 
           {/* Post-processing Effects (adaptive quality) */}
           <AdaptiveEffects

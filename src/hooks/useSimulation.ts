@@ -1,7 +1,8 @@
 /**
  * Simulation loop hook.
  *
- * Manages game initialization, disc physics updates, and the pull throw.
+ * Manages game initialization, the pull throw to start each point,
+ * AI player behavior, and disc physics updates.
  *
  * @module hooks/useSimulation
  */
@@ -9,143 +10,166 @@
 import { useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useSimulationStore } from "@/stores";
-import { initializeEntities, clearEntities } from "@/ecs";
-import { updateDiscFlight, throwDisc, giveDiscTo } from "@/systems/discSystem";
 import {
-  FIELD_WIDTH,
-  FIELD_LENGTH,
-  END_ZONE_DEPTH,
-  DISC_GRAVITY,
-  AIR_RESISTANCE,
-  DISC_LIFT_COEFFICIENT,
-  DISC_LIFT_MIN_SPEED,
-} from "@/constants";
+  initializeEntities,
+  clearEntities,
+  allPlayers,
+  disc,
+  awayPlayers,
+} from "@/ecs";
+import {
+  updateDiscFlight,
+  throwDisc,
+  giveDiscTo,
+  updateAI,
+  handleDiscThrow,
+  executePull,
+} from "@/systems";
+import { distanceSquared2D } from "@/utils";
 
-/** Delay before pull throw in milliseconds */
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Delay before pull throw in milliseconds (allows players to set up) */
 const PULL_DELAY_MS = 1000;
 
-/** Simulation timestep for trajectory calculation (60fps) */
-const SIM_DELTA = 1 / 60;
+/** Player ID for the designated puller (home team player 4) */
+const PULLER_ID = "home-4";
 
-/** Thrower's Z position (home end zone line) */
-const THROWER_Z = -(FIELD_LENGTH / 2 - END_ZONE_DEPTH);
-
-/** Release height of disc */
-const RELEASE_HEIGHT = 1.5;
-
-/** Target end zone boundaries */
-const END_ZONE_START = FIELD_LENGTH / 2 - END_ZONE_DEPTH;
-const END_ZONE_END = FIELD_LENGTH / 2;
+// ============================================================================
+// Pull Execution
+// ============================================================================
 
 /**
- * Simulate disc trajectory and return landing Z position.
- * Uses the same physics formulas as discSystem.ts.
+ * Find the player closest to a target position.
+ *
+ * @param targetX - Target X position
+ * @param targetZ - Target Z position
+ * @param players - Array of player entities to search
+ * @returns The closest player entity, or null if none found
  */
-function simulateTrajectory(vx: number, vy: number, vz: number): number {
-  let y = RELEASE_HEIGHT;
-  let z = THROWER_Z;
-  let velX = vx;
-  let velY = vy;
-  let velZ = vz;
-
-  // Simulate until disc hits ground (max 10 seconds)
-  for (let t = 0; t < 10; t += SIM_DELTA) {
-    const horizontalSpeed = Math.sqrt(velX * velX + velZ * velZ);
-
-    // Apply gravity and lift
-    velY += DISC_GRAVITY * SIM_DELTA;
-    if (horizontalSpeed > DISC_LIFT_MIN_SPEED) {
-      velY += horizontalSpeed * DISC_LIFT_COEFFICIENT * SIM_DELTA;
-    }
-
-    // Apply air resistance
-    const dragFactor = Math.pow(AIR_RESISTANCE, SIM_DELTA * 60);
-    velX *= dragFactor;
-    velZ *= dragFactor;
-
-    // Update position
-    y += velY * SIM_DELTA;
-    z += velZ * SIM_DELTA;
-
-    if (y <= 0.1) {
-      return z;
-    }
-  }
-
-  return z;
-}
-
-/**
- * Find the Z velocity needed to land at a target Z position.
- * Uses binary search for accuracy.
- */
-function findVelocityForTarget(
+function findClosestPlayer(
+  targetX: number,
   targetZ: number,
-  vy: number,
-  vx: number
-): number {
-  let low = 10;
-  let high = 100;
+  players: typeof awayPlayers.entities
+): (typeof players)[number] | null {
+  let closest: (typeof players)[number] | null = null;
+  let closestDistSq = Infinity;
 
-  for (let i = 0; i < 20; i++) {
-    const mid = (low + high) / 2;
-    const landingZ = simulateTrajectory(vx, vy, mid);
+  const targetPos = { x: targetX, y: 0, z: targetZ };
 
-    if (landingZ < targetZ) {
-      low = mid;
-    } else {
-      high = mid;
+  for (const player of players) {
+    const distSq = distanceSquared2D(player.position, targetPos);
+    if (distSq < closestDistSq) {
+      closestDistSq = distSq;
+      closest = player;
     }
   }
 
-  return (low + high) / 2;
+  return closest;
 }
 
 /**
- * Calculate pull throw velocity to land in the opposing end zone.
+ * Execute the pull throw to start a point.
+ *
+ * 1. Calculates the pull trajectory to a random endzone position
+ * 2. Designates the closest receiving team player to catch the pull
+ * 3. Throws the disc with the calculated velocity
+ *
+ * The designated pull receiver will be the only player who chases the disc.
+ * Other players on the receiving team will set up offensive positions.
  */
-function calculatePullVelocity(): { x: number; y: number; z: number } {
-  // Random target position in away end zone
-  const targetZ =
-    END_ZONE_START + Math.random() * (END_ZONE_END - END_ZONE_START);
-  const targetX = (Math.random() - 0.5) * FIELD_WIDTH * 0.6;
+function performPull(): void {
+  const pullData = executePull();
+  const discEntity = disc.first;
 
-  // Vertical velocity for nice arc
-  const yVelocity = 10 + Math.random() * 5;
+  if (discEntity?.disc) {
+    // Set the disc's target position for visualization
+    const targetPosition = {
+      x: pullData.targetX,
+      y: 0,
+      z: pullData.targetZ,
+    };
+    discEntity.disc.targetPosition = targetPosition;
 
-  // Small X velocity for curve
-  const xVelocity = targetX * 0.05 + (Math.random() - 0.5);
+    // Find the closest player on the receiving team (away team receives the pull)
+    const receivingTeam = awayPlayers.entities;
+    const pullReceiver = findClosestPlayer(
+      pullData.targetX,
+      pullData.targetZ,
+      receivingTeam
+    );
 
-  // Calculate Z velocity needed to reach target
-  const zVelocity = findVelocityForTarget(targetZ, yVelocity, xVelocity);
+    // Designate this player as the pull receiver
+    discEntity.disc.pullReceiverId = pullReceiver?.id ?? null;
 
-  return { x: xVelocity, y: yVelocity, z: zVelocity };
+    // Immediately set the receiver's AI to run toward the landing spot
+    // (don't wait for their decision timer to expire)
+    if (pullReceiver?.ai) {
+      pullReceiver.ai.state = "catching";
+      pullReceiver.ai.targetPosition = { ...targetPosition };
+      pullReceiver.ai.decision = 0; // Force immediate re-evaluation after catch
+    }
+  }
+
+  // Execute the throw
+  throwDisc({ x: pullData.x, y: pullData.y, z: pullData.z }, null);
 }
 
 /**
- * Restart the throw - resets entities and throws again.
+ * Restart the current point - resets all entities and performs a new pull.
+ *
+ * Cleanup sequence:
+ * 1. Reset Zustand store to initial state
+ * 2. Clear and recreate all ECS entities
+ * 3. Give disc to designated puller (resets disc flight state)
+ * 4. Schedule pull throw after brief delay
+ *
+ * @param setPhase - Function to update the game phase
  */
-function restartThrow(setPhase: (phase: "pull" | "playing") => void): void {
+function restartPoint(setPhase: (phase: "pull" | "playing") => void): void {
+  // Reset simulation store to initial state
+  useSimulationStore.getState().reset();
+
+  // Recreate all entities (creates fresh disc with clean state)
   initializeEntities();
-  giveDiscTo("home-4");
+
+  // Give disc to puller (giveDiscTo also resets disc flight state)
+  giveDiscTo(PULLER_ID);
 
   setTimeout(() => {
-    const velocity = calculatePullVelocity();
-    throwDisc(velocity, null);
+    performPull();
     setPhase("playing");
   }, 500);
 }
 
-// Global type declaration for restart function
+// ============================================================================
+// Global API
+// ============================================================================
+
+// Expose restart function globally for UI/debugging
 declare global {
   interface Window {
     restartThrow?: () => void;
   }
 }
 
+// ============================================================================
+// Main Hook
+// ============================================================================
+
 /**
- * Hook that manages the simulation loop.
- * Initializes entities, schedules the pull throw, and updates disc physics.
+ * Hook that manages the complete simulation loop.
+ *
+ * Responsibilities:
+ * - Initialize game entities on mount
+ * - Schedule and execute the pull throw
+ * - Update disc physics each frame
+ * - Run AI for player movement and decisions
+ * - Handle throw execution when AI decides to throw
+ *
+ * @returns Current game state (phase, possession, isPaused)
  */
 export function useSimulation() {
   const phase = useSimulationStore((s) => s.phase);
@@ -154,36 +178,87 @@ export function useSimulation() {
   const setPhase = useSimulationStore((s) => s.setPhase);
   const reset = useSimulationStore((s) => s.reset);
 
-  // Initialize entities and schedule throw on mount
+  // Initialize entities and schedule the pull throw on mount
   useEffect(() => {
     initializeEntities();
-    giveDiscTo("home-4");
+    giveDiscTo(PULLER_ID);
 
     // Expose restart function for UI
-    window.restartThrow = () => restartThrow(setPhase);
+    window.restartThrow = () => restartPoint(setPhase);
 
-    // Schedule the pull throw
-    const throwTimeout = setTimeout(() => {
-      const velocity = calculatePullVelocity();
-      throwDisc(velocity, null);
+    // Schedule the pull throw after a short delay
+    const pullTimeout = setTimeout(() => {
+      performPull();
       setPhase("playing");
     }, PULL_DELAY_MS);
 
     return () => {
-      clearTimeout(throwTimeout);
+      clearTimeout(pullTimeout);
       delete window.restartThrow;
       clearEntities();
       reset();
     };
   }, [setPhase, reset]);
 
-  // Game loop - update disc physics each frame
+  // Game loop - runs every frame
   useFrame((_, delta) => {
     const state = useSimulationStore.getState();
     if (state.isPaused) return;
 
+    // Update disc physics when in flight
     if (state.discInFlight) {
       updateDiscFlight(delta);
+    }
+
+    // Run AI during active gameplay phases (pull, playing, turnover)
+    // Only pause AI during score celebration or pregame
+    const activePhases = ["pull", "playing", "turnover"];
+    if (activePhases.includes(state.phase)) {
+      // Always update AI (players move whether disc is in flight or not)
+      updateAI(delta);
+
+      // During turnover, check if a player can pick up the grounded disc
+      if (state.phase === "turnover" && !state.discInFlight) {
+        const discEntity = disc.first;
+        if (discEntity) {
+          // Check if any player on the new possession team is close to disc
+          for (const player of allPlayers) {
+            if (player.player?.team !== state.possession) continue;
+
+            const dx = player.position.x - discEntity.position.x;
+            const dz = player.position.z - discEntity.position.z;
+            const distSq = dx * dx + dz * dz;
+
+            // Pickup radius: 1.5m
+            if (distSq < 2.25) {
+              giveDiscTo(player.id);
+              useSimulationStore.getState().setPhase("playing");
+              break;
+            }
+          }
+        }
+      }
+
+      // When disc is not in flight, check if holder wants to throw
+      if (state.phase === "playing" && !state.discInFlight) {
+        for (const player of allPlayers) {
+          if (player.ai?.state === "throwing" && player.player?.hasDisc) {
+            const throwResult = handleDiscThrow();
+            if (throwResult) {
+              // Set disc target for visualization
+              const discEntity = disc.first;
+              if (discEntity?.disc) {
+                discEntity.disc.targetPosition = throwResult.targetPosition;
+              }
+              // Execute the throw
+              throwDisc(throwResult.velocity, throwResult.target);
+            }
+            // Reset AI state after throw attempt
+            player.ai.state = "idle";
+            break;
+          }
+        }
+      }
     }
   });
 

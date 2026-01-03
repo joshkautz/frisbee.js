@@ -65,3 +65,16 @@ export const SCORE_CELEBRATION_TIME = 3;
 
 /** Probability of successful catch (0-1) */
 export const CATCH_SUCCESS_RATE = 0.9;
+
+// ============================================================================
+// Disc Heights
+// ============================================================================
+
+/** Height when player holds disc (meters) */
+export const DISC_HELD_HEIGHT = 1.0;
+
+/** Height when disc is released during throw (meters) */
+export const DISC_THROW_HEIGHT = 1.5;
+
+/** Ground collision threshold (meters) */
+export const DISC_GROUND_LEVEL = 0.1;
