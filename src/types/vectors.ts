@@ -31,12 +31,6 @@ export interface Vector3Object {
 }
 
 /**
- * Alias for Vector3Tuple for backward compatibility.
- * @deprecated Prefer using Vector3Tuple directly for clarity.
- */
-export type Position3D = Vector3Tuple;
-
-/**
  * Convert a tuple [x, y, z] to an object { x, y, z }.
  *
  * @param tuple - The tuple to convert

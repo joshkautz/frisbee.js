@@ -65,6 +65,32 @@ export function distanceSquared2D(a: Vector3Object, b: Vector3Object): number {
 }
 
 /**
+ * Calculate squared 3D distance (faster, avoids sqrt).
+ * Use for comparisons where actual distance isn't needed.
+ *
+ * @param a - First position
+ * @param b - Second position
+ * @param yOffset - Optional Y offset added to b.y (e.g., for player catch height)
+ * @returns Squared distance between points in 3D space
+ *
+ * @example
+ * // Check if within 2.5 meters (catch radius)
+ * if (distanceSquared3D(disc, player, 1) < 6.25) { // 2.5^2 = 6.25
+ *   // Within catch range
+ * }
+ */
+export function distanceSquared3D(
+  a: Vector3Object,
+  b: Vector3Object,
+  yOffset: number = 0
+): number {
+  const dx = a.x - b.x;
+  const dy = a.y - (b.y + yOffset);
+  const dz = a.z - b.z;
+  return dx * dx + dy * dy + dz * dz;
+}
+
+/**
  * Clamp a number between min and max values.
  *
  * @param value - Value to clamp

@@ -14,6 +14,16 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 /**
+ * Phase-specific icons for accessibility (not color-only)
+ */
+const PHASE_ICONS: Record<string, string> = {
+  score: "🎯", // Target for score
+  turnover: "↺", // Rotate for turnover
+  playing: "●", // Dot for playing
+  pull: "↗", // Arrow for pull
+};
+
+/**
  * Animated score display with spring animation.
  * Respects user's reduced motion preference.
  */
@@ -75,8 +85,12 @@ function AnimatedPhase({ phase }: { phase: string }) {
         color: PHASE_COLORS[phase] ?? "#ffffff",
         opacity: spring.opacity,
         transform: spring.y.to((y) => `translateY(${y}px)`),
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
       }}
     >
+      <span aria-hidden="true">{PHASE_ICONS[phase] ?? "●"}</span>
       {phase}
     </animated.div>
   );

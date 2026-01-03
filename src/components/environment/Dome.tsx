@@ -11,6 +11,7 @@ import { useMemo, useRef, memo } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
+import { A11y } from "@react-three/a11y";
 import {
   DOME_LENGTH,
   DOME_WIDTH,
@@ -231,29 +232,34 @@ export const Dome = memo(function Dome() {
   }, []);
 
   return (
-    <group>
-      {/* Main dome fabric */}
-      <mesh geometry={domeGeometry}>
-        <primitive object={fabricMaterial} attach="material" />
-      </mesh>
+    <A11y
+      role="content"
+      description={`Indoor sports dome covering the playing field. The dome is ${DOME_WIDTH} meters wide and ${DOME_LENGTH} meters long, with a height of ${DOME_HEIGHT} meters at the center.`}
+    >
+      <group>
+        {/* Main dome fabric */}
+        <mesh geometry={domeGeometry}>
+          <primitive object={fabricMaterial} attach="material" />
+        </mesh>
 
-      {/* Dome frame/ribs */}
-      <mesh geometry={domeGeometry}>
-        <primitive object={frameMaterial} attach="material" />
-      </mesh>
+        {/* Dome frame/ribs */}
+        <mesh geometry={domeGeometry}>
+          <primitive object={frameMaterial} attach="material" />
+        </mesh>
 
-      {/* Base outline */}
-      <Line
-        points={baseOutlinePoints}
-        color={DOME_OUTLINE_COLOR}
-        lineWidth={2}
-      />
+        {/* Base outline */}
+        <Line
+          points={baseOutlinePoints}
+          color={DOME_OUTLINE_COLOR}
+          lineWidth={2}
+        />
 
-      {/* Foundation */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <shapeGeometry args={[foundationShape]} />
-        <primitive object={foundationMaterial} attach="material" />
-      </mesh>
-    </group>
+        {/* Foundation */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+          <shapeGeometry args={[foundationShape]} />
+          <primitive object={foundationMaterial} attach="material" />
+        </mesh>
+      </group>
+    </A11y>
   );
 });

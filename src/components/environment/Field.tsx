@@ -1,6 +1,16 @@
+/**
+ * Field component with A11y descriptions.
+ *
+ * Renders the Ultimate Frisbee playing field with end zones
+ * and accessibility descriptions for screen readers.
+ *
+ * @module components/environment/Field
+ */
+
 import { memo } from "react";
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
+import { A11y } from "@react-three/a11y";
 import {
   FIELD_LENGTH,
   FIELD_WIDTH,
@@ -47,60 +57,65 @@ export const Field = memo(function Field() {
   ];
 
   return (
-    <group>
-      {/* Grass buffer/padding around field */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.01, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[DOME_WIDTH, DOME_LENGTH]} />
-        <primitive object={grassMaterial} attach="material" />
-      </mesh>
+    <A11y
+      role="content"
+      description={`Ultimate Frisbee field, ${FIELD_LENGTH} meters long by ${FIELD_WIDTH} meters wide. Each end zone is ${END_ZONE_DEPTH} meters deep. Home team defends the near end zone, away team defends the far end zone.`}
+    >
+      <group>
+        {/* Grass buffer/padding around field */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -0.01, 0]}
+          receiveShadow
+        >
+          <planeGeometry args={[DOME_WIDTH, DOME_LENGTH]} />
+          <primitive object={grassMaterial} attach="material" />
+        </mesh>
 
-      {/* Main playing surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[FIELD_WIDTH, FIELD_LENGTH]} />
-        <primitive object={fieldMaterial} attach="material" />
-      </mesh>
+        {/* Main playing surface */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[FIELD_WIDTH, FIELD_LENGTH]} />
+          <primitive object={fieldMaterial} attach="material" />
+        </mesh>
 
-      {/* Near end zone */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.01, -(FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2)]}
-        receiveShadow
-      >
-        <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
-        <primitive object={endZoneMaterial} attach="material" />
-      </mesh>
+        {/* Near end zone */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.01, -(FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2)]}
+          receiveShadow
+        >
+          <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
+          <primitive object={endZoneMaterial} attach="material" />
+        </mesh>
 
-      {/* Far end zone */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.01, FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2]}
-        receiveShadow
-      >
-        <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
-        <primitive object={endZoneMaterial} attach="material" />
-      </mesh>
+        {/* Far end zone */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.01, FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2]}
+          receiveShadow
+        >
+          <planeGeometry args={[FIELD_WIDTH, END_ZONE_DEPTH]} />
+          <primitive object={endZoneMaterial} attach="material" />
+        </mesh>
 
-      {/* Field lines */}
-      <Line points={boundaryPoints} color="white" lineWidth={2} />
-      <Line points={nearGoalPoints} color="white" lineWidth={2} />
-      <Line points={farGoalPoints} color="white" lineWidth={2} />
+        {/* Field lines */}
+        <Line points={boundaryPoints} color="white" lineWidth={2} />
+        <Line points={nearGoalPoints} color="white" lineWidth={2} />
+        <Line points={farGoalPoints} color="white" lineWidth={2} />
 
-      {/* Center line */}
-      <Line
-        points={[
-          [-FIELD_WIDTH / 2, 0.02, 0],
-          [FIELD_WIDTH / 2, 0.02, 0],
-        ]}
-        color="white"
-        lineWidth={1}
-        dashed
-        dashSize={2}
-        gapSize={2}
-      />
-    </group>
+        {/* Center line */}
+        <Line
+          points={[
+            [-FIELD_WIDTH / 2, 0.02, 0],
+            [FIELD_WIDTH / 2, 0.02, 0],
+          ]}
+          color="white"
+          lineWidth={1}
+          dashed
+          dashSize={2}
+          gapSize={2}
+        />
+      </group>
+    </A11y>
   );
 });

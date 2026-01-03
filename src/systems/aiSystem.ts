@@ -9,7 +9,14 @@
  * @module systems/aiSystem
  */
 
-import { allPlayers, disc, type Entity, type Position } from "@/ecs";
+import {
+  allPlayers,
+  homePlayers,
+  awayPlayers,
+  disc,
+  type Entity,
+  type Position,
+} from "@/ecs";
 import { useSimulationStore } from "@/stores";
 import {
   PLAYER_SPEED,
@@ -31,14 +38,26 @@ import {
   CUT_CANDIDATES,
 } from "@/constants";
 import {
-  distance2D,
+  distanceSquared2D,
   clampToField,
   isInEndZone,
   getTeamDirection,
 } from "@/utils";
 
+// Pre-compute squared thresholds to avoid sqrt in hot loops
+const AI_MEDIUM_RANGE_SQ = AI_MEDIUM_RANGE * AI_MEDIUM_RANGE;
+const AI_WIDE_RANGE_SQ = AI_WIDE_RANGE * AI_WIDE_RANGE;
+const THROW_RANGE_SQ = THROW_RANGE * THROW_RANGE;
+const DEFENDER_COVERAGE_CLOSE_SQ =
+  DEFENDER_COVERAGE_CLOSE * DEFENDER_COVERAGE_CLOSE;
+const DEFENDER_COVERAGE_MEDIUM_SQ =
+  DEFENDER_COVERAGE_MEDIUM * DEFENDER_COVERAGE_MEDIUM;
+
 /**
  * Find an open position for cutting.
+ *
+ * Generates candidates across the field with varied angles to ensure
+ * players spread out rather than clustering in one area.
  *
  * @param player - Player looking for open space
  * @param teammates - All players on same team
@@ -53,18 +72,23 @@ function findOpenSpace(
   const team = player.player!.team;
   const direction = getTeamDirection(team);
 
-  // Generate potential positions
+  // Generate potential positions with full 360-degree spread
   const candidates: Position[] = [];
 
-  // Try cutting towards the end zone
   for (let i = 0; i < CUT_CANDIDATES; i++) {
-    const angle = (Math.random() - 0.5) * Math.PI;
-    const dist = 10 + Math.random() * 15;
+    // Full circle of angles for diverse cut options
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 8 + Math.random() * 18;
+
+    // Mix of forward, lateral, and comeback cuts
+    const forwardBias = 0.3; // Slight preference toward end zone
+    const zOffset = Math.cos(angle) * dist + direction * forwardBias * dist;
+
     candidates.push(
       clampToField({
         x: player.position.x + Math.sin(angle) * dist,
         y: 0,
-        z: player.position.z + direction * Math.abs(Math.cos(angle)) * dist,
+        z: player.position.z + zOffset,
       })
     );
   }
@@ -79,19 +103,23 @@ function findOpenSpace(
     // Prefer positions closer to end zone
     score += pos.z * direction * END_ZONE_PREFERENCE_WEIGHT;
 
-    // Avoid being too close to opponents
+    // Avoid being too close to opponents (use squared distance for speed)
     for (const opp of opponents) {
-      const d = distance2D(pos, opp.position);
-      if (d < AI_MEDIUM_RANGE) {
+      const dSq = distanceSquared2D(pos, opp.position);
+      if (dSq < AI_MEDIUM_RANGE_SQ) {
+        // Only compute sqrt when we need the actual distance for scoring
+        const d = Math.sqrt(dSq);
         score -= (AI_MEDIUM_RANGE - d) * OPPONENT_PROXIMITY_WEIGHT;
       }
     }
 
-    // Avoid bunching with teammates
+    // Avoid bunching with teammates (use squared distance for speed)
     for (const tm of teammates) {
       if (tm.id === player.id) continue;
-      const d = distance2D(pos, tm.position);
-      if (d < AI_WIDE_RANGE) {
+      const dSq = distanceSquared2D(pos, tm.position);
+      if (dSq < AI_WIDE_RANGE_SQ) {
+        // Only compute sqrt when we need the actual distance for scoring
+        const d = Math.sqrt(dSq);
         score -= (AI_WIDE_RANGE - d) * TEAMMATE_BUNCHING_WEIGHT;
       }
     }
@@ -128,9 +156,11 @@ function findBestReceiver(
     if (tm.id === thrower.id) continue;
     if (tm.player!.hasDisc) continue;
 
-    const d = distance2D(thrower.position, tm.position);
-    if (d > THROW_RANGE) continue; // Too far
+    // Use squared distance for range check, only compute sqrt if in range
+    const dSq = distanceSquared2D(thrower.position, tm.position);
+    if (dSq > THROW_RANGE_SQ) continue; // Too far
 
+    const d = Math.sqrt(dSq); // Only compute sqrt for in-range receivers
     let score = 0;
 
     // Prefer forward passes
@@ -140,12 +170,12 @@ function findBestReceiver(
     // Prefer shorter passes (safer)
     score -= d * PASS_DISTANCE_PENALTY;
 
-    // Check for defenders
+    // Check for defenders (use squared distance for speed)
     for (const opp of opponents) {
-      const dToReceiver = distance2D(opp.position, tm.position);
-      if (dToReceiver < DEFENDER_COVERAGE_CLOSE) {
+      const dToReceiverSq = distanceSquared2D(opp.position, tm.position);
+      if (dToReceiverSq < DEFENDER_COVERAGE_CLOSE_SQ) {
         score -= HEAVY_GUARD_PENALTY;
-      } else if (dToReceiver < DEFENDER_COVERAGE_MEDIUM) {
+      } else if (dToReceiverSq < DEFENDER_COVERAGE_MEDIUM_SQ) {
         score -= LOOSE_COVER_PENALTY;
       }
     }
@@ -197,16 +227,17 @@ export function updateAI(delta: number): void {
 
   const scaledDelta = delta * state.simulationSpeed;
   const discEntity = disc.first;
-  const players = [...allPlayers];
 
-  const homePlayers = players.filter((p) => p.player?.team === "home");
-  const awayPlayers = players.filter((p) => p.player?.team === "away");
+  // Use pre-defined ECS queries directly (no array copy/filter overhead)
+  const homeTeam = homePlayers.entities;
+  const awayTeam = awayPlayers.entities;
 
-  const offensiveTeam = state.possession === "home" ? homePlayers : awayPlayers;
-  const defensiveTeam = state.possession === "home" ? awayPlayers : homePlayers;
+  const offensiveTeam = state.possession === "home" ? homeTeam : awayTeam;
+  const defensiveTeam = state.possession === "home" ? awayTeam : homeTeam;
 
-  for (const player of players) {
-    if (!player.ai || !player.player) continue;
+  // Iterate directly over ECS query (allPlayers already filters for entities with player + position + ai)
+  for (const player of allPlayers) {
+    if (!player.player) continue;
 
     // Update decision timer
     player.ai.decision -= scaledDelta;
@@ -294,17 +325,21 @@ export function handleDiscThrow(): {
   velocity: Position;
 } | null {
   const state = useSimulationStore.getState();
-  const players = [...allPlayers];
 
-  const thrower = players.find((p) => p.player?.hasDisc);
+  // Use ECS queries directly (no array copy overhead)
+  let thrower: Entity | null = null;
+  for (const p of allPlayers) {
+    if (p.player?.hasDisc) {
+      thrower = p;
+      break;
+    }
+  }
   if (!thrower) return null;
 
-  const offensiveTeam = players.filter(
-    (p) => p.player?.team === state.possession
-  );
-  const defensiveTeam = players.filter(
-    (p) => p.player?.team !== state.possession
-  );
+  const offensiveTeam =
+    state.possession === "home" ? homePlayers.entities : awayPlayers.entities;
+  const defensiveTeam =
+    state.possession === "home" ? awayPlayers.entities : homePlayers.entities;
 
   const target = findBestReceiver(thrower, offensiveTeam, defensiveTeam);
   if (!target) return null;
@@ -312,11 +347,12 @@ export function handleDiscThrow(): {
   // Calculate throw velocity
   const dx = target.position.x - thrower.position.x;
   const dz = target.position.z - thrower.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
+  const distSq = dx * dx + dz * dz;
 
   // Guard against division by zero (target at same position as thrower)
-  if (dist < 0.1) return null;
+  if (distSq < 0.01) return null; // 0.1^2 = 0.01
 
+  const dist = Math.sqrt(distSq);
   const throwSpeed = 20 + Math.random() * 10; // Variable throw speed
 
   return {

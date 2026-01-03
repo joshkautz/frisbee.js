@@ -39,16 +39,6 @@ export interface StreetLightProps {
   position: Vector3Tuple;
 }
 
-/**
- * Props for the EndZoneSensor component.
- */
-export interface EndZoneSensorProps {
-  /** Which team scores when disc enters this zone */
-  team: "home" | "away";
-  /** Position as [x, y, z] tuple */
-  position: Vector3Tuple;
-}
-
 // ============================================================================
 // Entity Component Props
 // ============================================================================

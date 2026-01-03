@@ -2,7 +2,7 @@
  * Central type definitions for the frisbee.js project.
  *
  * Re-exports all types from specialized modules:
- * - vectors: Vector3Tuple, Vector3Object, Position3D
+ * - vectors: Vector3Tuple, Vector3Object
  * - game: GamePhase, Team, SimulationState
  * - components: BuildingProps, PlayerProps, TeamProps, etc.
  *
@@ -13,7 +13,6 @@
 export {
   type Vector3Tuple,
   type Vector3Object,
-  type Position3D,
   tupleToObject,
   objectToTuple,
 } from "./vectors";
@@ -31,7 +30,6 @@ export {
 export {
   type BuildingProps,
   type StreetLightProps,
-  type EndZoneSensorProps,
   type PlayerProps,
   type TeamProps,
   type CameraControlsProps,

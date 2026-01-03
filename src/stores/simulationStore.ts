@@ -11,6 +11,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { GamePhase, Team, SimulationState } from "@/types";
 import { SCORE_CELEBRATION_TIME } from "@/constants";
+import { useCameraShake } from "@/hooks/useCameraShake";
 
 const INITIAL_STATE = {
   homeScore: 0,
@@ -55,6 +56,9 @@ export const useSimulationStore = create<SimulationState>()(
         discInFlight: false,
       }));
 
+      // Trigger strong camera shake for score
+      useCameraShake.getState().shake("score");
+
       // After celebration, switch possession and go to pull
       scheduleTimeout(() => {
         set({
@@ -72,6 +76,9 @@ export const useSimulationStore = create<SimulationState>()(
         phase: "turnover",
         discInFlight: false,
       }));
+
+      // Trigger medium camera shake for turnover
+      useCameraShake.getState().shake("turnover");
     },
 
     setPhase: (phase: GamePhase) => set({ phase }),
@@ -82,12 +89,11 @@ export const useSimulationStore = create<SimulationState>()(
         discInFlight: false,
       }),
 
-    throwDisc: () => {
+    throwDisc: () =>
       set({
         discHeldBy: null,
         discInFlight: true,
-      });
-    },
+      }),
 
     catchDisc: (playerId: string) => {
       const state = get();
@@ -95,19 +101,21 @@ export const useSimulationStore = create<SimulationState>()(
       const playerTeam = playerId.startsWith("home") ? "home" : "away";
 
       if (playerTeam !== state.possession) {
-        // Interception - turnover
+        // Interception - turnover (use turnover shake instead)
         set({
           discHeldBy: playerId,
           discInFlight: false,
           possession: playerTeam,
           phase: "playing",
         });
+        useCameraShake.getState().shake("turnover");
       } else {
-        // Successful catch
+        // Successful catch - light shake
         set({
           discHeldBy: playerId,
           discInFlight: false,
         });
+        useCameraShake.getState().shake("catch");
       }
     },
 

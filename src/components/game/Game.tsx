@@ -6,25 +6,20 @@
  * @module components/game/Game
  */
 
-import { Suspense } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Stats, PerformanceMonitor, KeyboardControls } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
-import {
-  EffectComposer,
-  Bloom,
-  Vignette,
-  SMAA,
-} from "@react-three/postprocessing";
 import { A11yAnnouncer } from "@react-three/a11y";
 import { TEAM_HOME_COLOR, TEAM_AWAY_COLOR, FOG_COLOR } from "@/constants";
 import { Field, Dome, City, Lighting, PhysicsWorld } from "../environment";
 import { Team, Disc } from "../entities";
-import { Scoreboard, MobileControls } from "../ui";
+import { Scoreboard, MobileControls, GameAnnouncer, HelpOverlay } from "../ui";
 import { CameraControls, KeyboardHandler } from "../controls";
 import { SimulationController } from "../core";
 import { ScaleReference, DimensionsPanel } from "../debug";
 import { useLevaControls } from "./useLevaControls";
+import { AdaptiveEffects, type QualityLevel } from "./AdaptiveEffects";
 
 /**
  * Loading fallback for Suspense - shown while physics engine initializes.
@@ -43,8 +38,8 @@ function PhysicsLoadingFallback() {
  */
 const KEYBOARD_MAP = [
   { name: "pause", keys: ["Space"] },
-  { name: "speedUp", keys: ["ArrowUp", "KeyW"] },
-  { name: "slowDown", keys: ["ArrowDown", "KeyS"] },
+  { name: "speedUp", keys: ["Equal", "NumpadAdd"] }, // + key
+  { name: "slowDown", keys: ["Minus", "NumpadSubtract"] }, // - key
   { name: "resetCamera", keys: ["KeyR"] },
 ];
 
@@ -54,12 +49,30 @@ const KEYBOARD_MAP = [
  * Orchestrates all game systems including:
  * - 3D rendering with React Three Fiber
  * - Physics simulation with Rapier
- * - Post-processing effects
+ * - Post-processing effects (with adaptive quality)
  * - UI overlays and accessibility
  */
 export function Game() {
   const { showStats, enableEffects, bloomIntensity, showScaleReference } =
     useLevaControls();
+
+  // Adaptive quality based on performance monitoring
+  const [quality, setQuality] = useState<QualityLevel>("high");
+
+  // Callbacks for PerformanceMonitor
+  const handleIncline = useCallback(() => {
+    // Performance is good - increase quality
+    setQuality((prev) => (prev === "low" ? "medium" : "high"));
+  }, []);
+
+  const handleDecline = useCallback(() => {
+    // Performance is dropping - reduce quality
+    setQuality((prev) => (prev === "high" ? "medium" : "low"));
+  }, []);
+
+  // Adaptive DPR based on quality level
+  const dpr: [number, number] =
+    quality === "high" ? [1, 2] : quality === "medium" ? [1, 1.5] : [0.75, 1];
 
   return (
     <KeyboardControls map={KEYBOARD_MAP}>
@@ -67,6 +80,8 @@ export function Game() {
         {/* UI Overlays */}
         <Scoreboard />
         <MobileControls />
+        <GameAnnouncer />
+        <HelpOverlay />
         {showScaleReference && <DimensionsPanel />}
 
         {/* 3D Canvas */}
@@ -78,9 +93,9 @@ export function Game() {
             far: 1000,
           }}
           shadows
-          dpr={[1, 2]}
+          dpr={dpr}
           gl={{
-            antialias: true,
+            antialias: quality !== "low",
             powerPreference: "high-performance",
           }}
           style={{
@@ -115,25 +130,26 @@ export function Game() {
 
           {/* Camera */}
           <CameraControls />
+          {/* CameraShakeController conflicts with OrbitControls */}
+          {/* <CameraShakeController /> */}
 
           {/* Debug Tools */}
           {showScaleReference && <ScaleReference />}
 
-          {/* Post-processing Effects */}
-          {enableEffects && (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Bloom
-                luminanceThreshold={0.9}
-                luminanceSmoothing={0.3}
-                intensity={bloomIntensity}
-              />
-              <Vignette offset={0.3} darkness={0.5} />
-            </EffectComposer>
-          )}
+          {/* Post-processing Effects (adaptive quality) */}
+          <AdaptiveEffects
+            quality={quality}
+            enabled={enableEffects}
+            bloomIntensity={bloomIntensity}
+          />
 
-          {/* Performance Monitoring */}
-          <PerformanceMonitor />
+          {/* Performance Monitoring with adaptive callbacks */}
+          <PerformanceMonitor
+            onIncline={handleIncline}
+            onDecline={handleDecline}
+            flipflops={3}
+            factor={1}
+          />
           {showStats && <Stats />}
         </Canvas>
 

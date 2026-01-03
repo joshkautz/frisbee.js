@@ -6,3 +6,4 @@
 
 export { CameraControls } from "./CameraControls";
 export { KeyboardHandler } from "./KeyboardHandler";
+export { CameraShakeController } from "./CameraShakeController";

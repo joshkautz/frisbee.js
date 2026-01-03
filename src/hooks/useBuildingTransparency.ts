@@ -11,7 +11,7 @@ import type React from "react";
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Position3D } from "@/types";
+import type { Vector3Tuple } from "@/types";
 import {
   lerp,
   projectBoxToScreen,
@@ -47,6 +47,10 @@ const domeBounds = new THREE.Box3(
 const _buildingBox = new THREE.Box3();
 const _screenBoundsA = createScreenBounds();
 const _screenBoundsB = createScreenBounds();
+const _buildingMin = new THREE.Vector3();
+const _buildingMax = new THREE.Vector3();
+const _buildingCenter = new THREE.Vector3();
+const _domeCenter = new THREE.Vector3(0, DOME_HEIGHT / 2, 0);
 
 /**
  * Calculate building transparency based on screen-space occlusion.
@@ -62,7 +66,7 @@ const _screenBoundsB = createScreenBounds();
  * @returns Ref containing current opacity (read in useFrame for live values)
  */
 export function useBuildingTransparency(
-  position: Position3D,
+  position: Vector3Tuple,
   width: number = 10,
   height: number = 20,
   depth: number = 10
@@ -71,19 +75,18 @@ export function useBuildingTransparency(
   const opacityRef = useRef(1);
 
   useFrame((_, delta) => {
-    // Create building bounding box
-    _buildingBox.set(
-      new THREE.Vector3(
-        position[0] - width / 2,
-        position[1],
-        position[2] - depth / 2
-      ),
-      new THREE.Vector3(
-        position[0] + width / 2,
-        position[1] + height,
-        position[2] + depth / 2
-      )
+    // Create building bounding box using reusable vectors
+    _buildingMin.set(
+      position[0] - width / 2,
+      position[1],
+      position[2] - depth / 2
     );
+    _buildingMax.set(
+      position[0] + width / 2,
+      position[1] + height,
+      position[2] + depth / 2
+    );
+    _buildingBox.set(_buildingMin, _buildingMax);
 
     // Project dome bounds to screen
     const domeVisible = projectBoxToScreen(domeBounds, camera, _screenBoundsA);
@@ -96,16 +99,11 @@ export function useBuildingTransparency(
     );
 
     // Check if building is in front of dome (closer to camera)
-    const buildingCenter = new THREE.Vector3(
-      position[0],
-      position[1] + height / 2,
-      position[2]
-    );
-    const domeCenter = new THREE.Vector3(0, DOME_HEIGHT / 2, 0);
+    _buildingCenter.set(position[0], position[1] + height / 2, position[2]);
     const cameraPos = camera.position;
 
-    const distToBuilding = cameraPos.distanceTo(buildingCenter);
-    const distToDome = cameraPos.distanceTo(domeCenter);
+    const distToBuilding = cameraPos.distanceTo(_buildingCenter);
+    const distToDome = cameraPos.distanceTo(_domeCenter);
     const buildingCloser = distToBuilding < distToDome;
 
     // Building occludes if:

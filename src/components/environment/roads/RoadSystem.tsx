@@ -463,5 +463,3 @@ export const RoadSystem = memo(function RoadSystem() {
     </group>
   );
 });
-
-export default RoadSystem;

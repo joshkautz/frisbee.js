@@ -1,18 +1,15 @@
 /**
  * AI behavior constants for player decision-making.
  *
- * These constants control how AI players evaluate positions,
- * make decisions, and respond to game situations.
+ * Controls how AI players evaluate positions, make decisions,
+ * and respond to game situations.
  *
  * @module constants/ai
  */
 
 // ============================================================================
-// Proximity Thresholds (in meters)
+// Proximity Thresholds (meters)
 // ============================================================================
-
-/** Very close to player/disc - heavily contested */
-export const AI_CLOSE_RANGE = 3;
 
 /** Moderate distance - loosely covered */
 export const AI_MEDIUM_RANGE = 5;
@@ -28,7 +25,7 @@ export const AI_WIDE_RANGE = 8;
 export const OPPONENT_PROXIMITY_WEIGHT = 10;
 
 /** Penalty for bunching too close to teammates */
-export const TEAMMATE_BUNCHING_WEIGHT = 2;
+export const TEAMMATE_BUNCHING_WEIGHT = 8;
 
 /** Bonus for end zone targets */
 export const END_ZONE_BONUS = 30;
@@ -60,13 +57,7 @@ export const LOOSE_COVER_PENALTY = 5;
 // ============================================================================
 
 /** Number of cut position candidates to evaluate */
-export const CUT_CANDIDATES = 5;
-
-/** Minimum distance for a cut (meters) */
-export const CUT_MIN_DISTANCE = 10;
-
-/** Maximum distance for a cut (meters) */
-export const CUT_MAX_DISTANCE = 25;
+export const CUT_CANDIDATES = 10;
 
 /** Weight for preferring positions closer to end zone */
-export const END_ZONE_PREFERENCE_WEIGHT = 0.5;
+export const END_ZONE_PREFERENCE_WEIGHT = 0.15;

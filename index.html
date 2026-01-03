@@ -168,14 +168,14 @@
       </div>
     </noscript>
     <a href="#game-container" class="skip-link">Skip to game</a>
-    <div class="loading" id="loading" aria-live="polite">
-      <div class="loading-spinner"></div>
-      Loading game...
+    <div class="loading" id="loading" role="status" aria-live="polite">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <span>Loading game...</span>
     </div>
     <div
       id="game-container"
       tabindex="0"
-      aria-label="Ultimate Frisbee 3D game. Use mouse or touch to rotate camera, scroll or pinch to zoom. Use WASD or arrow keys to pan."
+      aria-label="Ultimate Frisbee 3D game. Press ? for controls help. Use mouse or touch to rotate camera, scroll or pinch to zoom. Use WASD or arrow keys to pan. Press Space to pause."
     ></div>
     <div class="controls-hint" aria-hidden="true">
       <strong>Controls:</strong> WASD/Arrows to pan • Drag to rotate • Scroll/Pinch to zoom

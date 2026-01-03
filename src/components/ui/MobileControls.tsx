@@ -43,6 +43,12 @@ export const MobileControls = memo(function MobileControls() {
     setSimulationSpeed(Math.max(simulationSpeed - 0.5, 0.25));
   };
 
+  const handleRestart = () => {
+    if (window.restartThrow) {
+      window.restartThrow();
+    }
+  };
+
   return (
     <div
       style={{
@@ -100,6 +106,24 @@ export const MobileControls = memo(function MobileControls() {
       >
         {simulationSpeed}x
       </div>
+      {/* Debug restart button - only visible in development */}
+      {import.meta.env.DEV && (
+        <button
+          onClick={handleRestart}
+          style={{
+            ...baseButtonStyle,
+            marginTop: 16,
+            borderRadius: 8,
+            width: "auto",
+            padding: "8px 12px",
+            fontSize: 12,
+          }}
+          aria-label="Restart throw"
+          title="Restart throw (debug)"
+        >
+          ↻ Throw
+        </button>
+      )}
     </div>
   );
 });

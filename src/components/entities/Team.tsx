@@ -1,14 +1,12 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { ECS, homePlayers, awayPlayers } from "@/ecs";
 import type { TeamProps } from "@/types";
 import { Player } from "./Player";
 
 export const Team = memo(function Team({ team, color }: TeamProps) {
   // Use the appropriate pre-defined query based on team
-  const query = useMemo(
-    () => (team === "home" ? homePlayers : awayPlayers),
-    [team]
-  );
+  // No useMemo needed - these are constant query objects
+  const query = team === "home" ? homePlayers : awayPlayers;
 
   return (
     <group>

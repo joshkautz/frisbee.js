@@ -7,7 +7,7 @@
  * @module components/environment/Building
  */
 
-import { memo, useMemo, useEffect, useRef } from "react";
+import { memo, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { WINDOW_COLOR, ROOF_COLOR } from "@/constants";
@@ -44,13 +44,9 @@ export const Building = memo(function Building({
     [color]
   );
 
-  // Refs to update materials in useFrame
-  const materialsRef = useRef(materials);
-  materialsRef.current = materials;
-
-  // Update material opacity each frame (read from ref for live values)
+  // Update material opacity each frame
   useFrame(() => {
-    const mats = materialsRef.current;
+    const mats = materials;
     const opacity = opacityRef.current;
     const isTransparent = opacity < TRANSPARENT_THRESHOLD;
 

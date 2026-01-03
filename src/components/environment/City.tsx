@@ -29,7 +29,7 @@ import {
   CITY_SEED,
 } from "@/constants";
 import { registerDisposable } from "@/ecs";
-import type { BuildingProps, Position3D } from "@/types";
+import type { BuildingProps, Vector3Tuple } from "@/types";
 import { createSeededRandom } from "@/utils";
 import { Building } from "./Building";
 import { StreetLight } from "./StreetLight";
@@ -141,7 +141,7 @@ export const City = memo(function City() {
   // 16 lights total: 5 per side with shared corners
   // Park is a 4x4 block grid (200m x 200m)
   const streetLightPositions = useMemo(() => {
-    const positions: Position3D[] = [];
+    const positions: Vector3Tuple[] = [];
 
     // Park is 4 blocks × 4 blocks = 200m × 200m (square)
     // Inset past the road (12m) and sidewalk (3m) to be on the park edge

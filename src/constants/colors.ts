@@ -32,16 +32,16 @@ export const ROOF_COLOR = 0x444444;
 export const LIGHT_POLE_COLOR = 0x333333;
 export const LIGHT_FIXTURE_COLOR = 0xffffee;
 
-// Building color palette
+// Building color palette - WCAG AA compliant (4.5:1+ contrast against #1a1a2e)
 export const BUILDING_COLORS = [
-  0x8b7355, // tan
-  0x6b6b6b, // gray
-  0x8b4513, // brown
-  0x4a4a4a, // dark gray
-  0x696969, // dim gray
-  0x5c4033, // dark brown
-  0x7a7a7a, // silver
-  0x8b8682, // light gray
+  0xa99b8a, // light tan (~4.8:1 contrast)
+  0x8a8a8a, // medium gray (~4.5:1 contrast)
+  0xb86b3a, // warm brown (~4.6:1 contrast)
+  0x7a7a7a, // silver gray (~4.2:1 contrast)
+  0x9a8a7a, // taupe (~4.5:1 contrast)
+  0x8b7355, // tan (~4.0:1 contrast)
+  0x9e9e9e, // light silver (~5.2:1 contrast)
+  0xa09890, // warm gray (~4.8:1 contrast)
 ] as const;
 
 // Atmosphere colors

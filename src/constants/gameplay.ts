@@ -1,5 +1,5 @@
 /**
- * Gameplay constants for simulation, AI, and physics.
+ * Gameplay constants for simulation and physics.
  *
  * @module constants/gameplay
  */
@@ -31,30 +31,33 @@ export const DECISION_INTERVAL = 0.5;
 /** Distance to catch disc (meters) */
 export const CATCH_RADIUS = 2.5;
 
-/** Gravity acceleration for disc flight (m/s^2) */
-export const DISC_GRAVITY = -15;
+/** Gravity acceleration for disc flight (m/s²) */
+export const DISC_GRAVITY = -9.8;
 
-/** Air drag coefficient (0-1, applied per frame) */
-export const AIR_RESISTANCE = 0.98;
+/**
+ * Air drag coefficient for horizontal velocity (0-1, applied per frame).
+ * Higher = less drag. A disc cuts through air efficiently.
+ */
+export const AIR_RESISTANCE = 0.997;
+
+/**
+ * Lift coefficient - how much horizontal speed creates upward force.
+ * A spinning frisbee generates lift like a wing.
+ */
+export const DISC_LIFT_COEFFICIENT = 0.15;
+
+/**
+ * Minimum horizontal speed needed to generate lift (m/s).
+ * Below this, the disc just falls.
+ */
+export const DISC_LIFT_MIN_SPEED = 5;
 
 // ============================================================================
-// Game Timing (seconds)
+// Game Timing
 // ============================================================================
 
-/** Minimum time between throws */
-export const THROW_INTERVAL = 2;
-
-/** Delay before executing pull after score */
-export const PULL_DELAY = 2;
-
-/** Celebration time after scoring */
+/** Celebration time after scoring (seconds) */
 export const SCORE_CELEBRATION_TIME = 3;
-
-/** Delay before pickup after turnover */
-export const TURNOVER_PICKUP_DELAY = 1;
-
-/** Delay before game starts after initialization */
-export const GAME_INIT_DELAY = 1;
 
 // ============================================================================
 // Catch Mechanics

@@ -37,6 +37,8 @@ export interface DiscComponent {
   inFlight: boolean;
   targetPosition: Position | null;
   flightTime: number;
+  /** ID of the player who threw the disc (cannot catch their own throw) */
+  thrownBy: string | null;
 }
 
 /** AI component for player behavior and decision-making */
@@ -95,6 +97,36 @@ export const awayPlayers = world.where(
 export const disc = world.with("disc", "position");
 
 /**
+ * Type Guards for Entity Components
+ *
+ * These predicates enable TypeScript to narrow Entity types
+ * based on component presence, eliminating need for non-null assertions.
+ */
+
+/** Type guard: Entity has player component */
+export function isPlayer(
+  entity: Entity
+): entity is Entity & { player: PlayerComponent; ai: AIComponent } {
+  return entity.player !== undefined && entity.ai !== undefined;
+}
+
+/** Type guard: Entity is the disc */
+export function isDisc(
+  entity: Entity
+): entity is Entity & { disc: DiscComponent; velocity: Velocity } {
+  return entity.disc !== undefined && entity.velocity !== undefined;
+}
+
+/** Type guard: Entity has physics rigid body */
+export function hasPhysics(
+  entity: Entity
+): entity is Entity & { physicsRef: PhysicsRef } {
+  return (
+    entity.physicsRef !== undefined && entity.physicsRef.rigidBody !== null
+  );
+}
+
+/**
  * Create a player entity with all required components.
  *
  * @param team - Which team the player belongs to
@@ -148,6 +180,7 @@ export function createDisc(x: number, y: number, z: number): Entity {
       inFlight: false,
       targetPosition: null,
       flightTime: 0,
+      thrownBy: null,
     },
     physicsRef: { rigidBody: null },
     meshRef: { mesh: null },
@@ -193,29 +226,38 @@ export function clearEntities(): void {
 
 /**
  * Initialize all entities for a new game.
- * Creates 7 players per team and one disc.
+ * Creates 7 players per team lined up on their end zone lines.
  */
 export function initializeEntities(): void {
   clearEntities();
 
-  // Home team (starts on negative Z side)
-  createPlayer("home", 1, "handler", -10, -30);
-  createPlayer("home", 2, "handler", 0, -35);
-  createPlayer("home", 3, "handler", 10, -30);
-  createPlayer("home", 4, "cutter", -12, -20);
-  createPlayer("home", 5, "cutter", 0, -15);
-  createPlayer("home", 6, "cutter", 12, -20);
-  createPlayer("home", 7, "cutter", 0, -25);
+  // Field width is 37m, so players spread from -15 to +15 (every 5m)
+  const xPositions = [-15, -10, -5, 0, 5, 10, 15];
 
-  // Away team (starts on positive Z side)
-  createPlayer("away", 1, "handler", -10, 30);
-  createPlayer("away", 2, "handler", 0, 35);
-  createPlayer("away", 3, "handler", 10, 30);
-  createPlayer("away", 4, "cutter", -12, 20);
-  createPlayer("away", 5, "cutter", 0, 15);
-  createPlayer("away", 6, "cutter", 12, 20);
-  createPlayer("away", 7, "cutter", 0, 25);
+  // Home team (blue) - lined up on their end zone line (z = -32)
+  const homeZ = -32;
+  for (let i = 0; i < 7; i++) {
+    createPlayer(
+      "home",
+      i + 1,
+      i < 3 ? "handler" : "cutter",
+      xPositions[i],
+      homeZ
+    );
+  }
 
-  // Disc at center
-  createDisc(0, 1, 0);
+  // Away team (red) - lined up on their end zone line (z = +32)
+  const awayZ = 32;
+  for (let i = 0; i < 7; i++) {
+    createPlayer(
+      "away",
+      i + 1,
+      i < 3 ? "handler" : "cutter",
+      xPositions[i],
+      awayZ
+    );
+  }
+
+  // Disc starts with home player #4 (center of the line)
+  createDisc(0, 1, homeZ);
 }

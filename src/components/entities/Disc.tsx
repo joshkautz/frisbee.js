@@ -5,31 +5,25 @@ import { RigidBody, CylinderCollider } from "@react-three/rapier";
 import type { RapierRigidBody } from "@react-three/rapier";
 import { A11y } from "@react-three/a11y";
 import * as THREE from "three";
-import {
-  DISC_RADIUS,
-  DISC_HEIGHT,
-  DISC_COLOR,
-  DISC_RIM_COLOR,
-  AIR_RESISTANCE,
-} from "@/constants";
+import { DISC_RADIUS, DISC_HEIGHT, DISC_COLOR } from "@/constants";
 import { disc as discQuery, ECS, registerDisposable, type Entity } from "@/ecs";
 import { useReducedMotion } from "@/hooks";
 
-// Shared materials for all discs (created once, disposed on HMR)
+// Shared material for disc (created once, disposed on HMR)
 const discMaterial = new THREE.MeshStandardMaterial({ color: DISC_COLOR });
-const rimMaterial = new THREE.MeshStandardMaterial({ color: DISC_RIM_COLOR });
-
-// Register materials for disposal during HMR cleanup
 registerDisposable(discMaterial);
-registerDisposable(rimMaterial);
 
-// Inner component that receives the disc entity
-function DiscRenderer({ entity }: { entity: Entity }) {
+// Inner component that receives the disc entity (memoized to prevent unnecessary re-renders)
+const DiscRenderer = memo(function DiscRenderer({
+  entity,
+}: {
+  entity: Entity;
+}) {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const groupRef = useRef<THREE.Group>(null);
   const targetPosition = useRef(new THREE.Vector3(0, 1, 0));
   const spinRef = useRef(0);
-  const wasFlying = useRef(false);
+  const isCurrentlyFlying = useRef(false);
   const prefersReducedMotion = useReducedMotion();
 
   const discEntity = entity;
@@ -53,30 +47,45 @@ function DiscRenderer({ entity }: { entity: Entity }) {
     const rb = rigidBodyRef.current;
 
     if (isFlying && rb) {
-      // When flying, sync ECS position from physics
-      const pos = rb.translation();
-      discEntity.position.x = pos.x;
-      discEntity.position.y = pos.y;
-      discEntity.position.z = pos.z;
-
-      // Apply air resistance (drag)
-      const vel = rb.linvel();
-      rb.setLinvel(
-        { x: vel.x * AIR_RESISTANCE, y: vel.y, z: vel.z * AIR_RESISTANCE },
+      // ECS is the authority for disc physics - sync TO Rapier for visual/collision only
+      // discSystem.ts handles gravity, air resistance, and position updates
+      rb.setTranslation(
+        {
+          x: discEntity.position.x,
+          y: discEntity.position.y,
+          z: discEntity.position.z,
+        },
         true
       );
+      rb.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear Rapier velocity, ECS handles physics
 
-      // Spin while in flight (skip if reduced motion preferred)
-      if (!prefersReducedMotion) {
-        spinRef.current += delta * 15;
-        groupRef.current.rotation.y = spinRef.current;
-      }
+      // Realistic flying saucer spin (skip if reduced motion preferred)
+      if (!prefersReducedMotion && discEntity.velocity) {
+        // Fast spin around vertical axis (frisbees spin 5-10 revolutions per second)
+        spinRef.current += delta * 40; // ~6 rotations per second
 
-      // Check if disc hit the ground
-      if (pos.y <= 0.2 && wasFlying.current) {
-        // Ground contact - stop flight
-        discEntity.disc!.inFlight = false;
-        rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        // Calculate tilt based on velocity direction
+        // Disc tilts slightly in the direction of travel
+        const vx = discEntity.velocity.x;
+        const vz = discEntity.velocity.z;
+        const horizontalSpeed = Math.sqrt(vx * vx + vz * vz);
+
+        // Tilt angle - subtle, max ~15 degrees when moving fast
+        const maxTilt = 0.26; // ~15 degrees in radians
+        const tiltAmount = Math.min(horizontalSpeed / 40, 1) * maxTilt;
+
+        // Calculate tilt direction (perpendicular to velocity for banking effect)
+        // Also add slight nose-down pitch based on vertical velocity
+        const pitchFromDescent = Math.max(0, -discEntity.velocity.y * 0.02);
+
+        // Apply rotation: spin + tilt
+        // The disc mesh is already rotated 90° on X to be flat
+        // We apply additional tilt on X (pitch) and Z (roll) based on velocity
+        groupRef.current.rotation.set(
+          tiltAmount * 0.3 + pitchFromDescent, // Slight forward tilt
+          spinRef.current, // Main spin
+          (vx / (horizontalSpeed + 0.1)) * tiltAmount * 0.5 // Side bank based on x velocity
+        );
       }
     } else if (rb) {
       // When held, move to holder position (kinematic-like behavior)
@@ -95,26 +104,26 @@ function DiscRenderer({ entity }: { entity: Entity }) {
         true
       );
       rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+
+      // Reset rotation when held (disc should be flat)
+      groupRef.current.rotation.set(0, 0, 0);
+      spinRef.current = 0;
     }
 
-    wasFlying.current = isFlying;
+    // Store flying state in ref for use in render (avoids duplicate check)
+    isCurrentlyFlying.current = isFlying;
   });
 
-  const isFlying = discEntity.disc?.inFlight ?? false;
+  // Use ref value to avoid duplicate state access
+  const isFlying = isCurrentlyFlying.current;
   const description = isFlying ? "Frisbee in flight" : "Frisbee held by player";
 
   const discMesh = (
     <group ref={groupRef}>
-      {/* Main disc body */}
-      <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
+      {/* Simple flat cylinder disc */}
+      <mesh castShadow>
         <cylinderGeometry args={[DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 32]} />
         <primitive object={discMaterial} attach="material" />
-      </mesh>
-
-      {/* Disc rim */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[DISC_RADIUS - 0.01, 0.015, 8, 32]} />
-        <primitive object={rimMaterial} attach="material" />
       </mesh>
     </group>
   );
@@ -170,7 +179,7 @@ function DiscRenderer({ entity }: { entity: Entity }) {
       </Float>
     </A11y>
   );
-}
+});
 
 // Wrapper component that uses ECS.Entities for automatic subscription
 export const Disc = memo(function Disc() {

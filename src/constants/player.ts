@@ -1,29 +1,34 @@
 /**
  * Player model dimensions (proportional to field scale)
  * Based on realistic human proportions for ~6 ft (1.83m) athlete
+ * Scaled up 25% for better visibility in the game view
  *
- * Total height breakdown:
- * - Legs: 0.85m (~2'9") - athletic build, slightly longer legs
- * - Torso: 0.55m (~1'10") - includes shoulders
- * - Neck+Head: 0.11m radius × 2 = 0.22m (~9")
- * - Total: ~1.83m (6'0")
+ * Total height breakdown (scaled):
+ * - Legs: 1.06m - athletic build
+ * - Torso: 0.69m - includes shoulders
+ * - Head: 0.14m radius × 2 = 0.28m
+ * - Total: ~2.3m (scaled for visibility)
  */
 
+// Scale factor for player visibility
+const PLAYER_SCALE = 1.25;
+
 // Body dimensions (torso)
-export const BODY_HEIGHT = 0.55; // ~1'10" torso
-export const BODY_RADIUS = 0.18; // ~14" chest diameter
+export const BODY_HEIGHT = 0.55 * PLAYER_SCALE; // Torso height
+export const BODY_RADIUS = 0.18 * PLAYER_SCALE; // Chest diameter
 
 // Head dimensions
-export const HEAD_RADIUS = 0.11; // ~9" head diameter (realistic)
+export const HEAD_RADIUS = 0.11 * PLAYER_SCALE; // Head diameter
 
 // Leg dimensions
-export const LEG_HEIGHT = 0.85; // ~2'9" legs (athletic proportion)
-export const LEG_RADIUS = 0.07; // ~5.5" thigh diameter
+export const LEG_HEIGHT = 0.85 * PLAYER_SCALE; // Leg length
+export const LEG_RADIUS = 0.07 * PLAYER_SCALE; // Thigh diameter
 
 // Arm dimensions
-export const ARM_LENGTH = 0.55; // ~22" arm length
-export const ARM_RADIUS = 0.05; // ~4" arm diameter
+export const ARM_LENGTH = 0.55 * PLAYER_SCALE; // Arm length
+export const ARM_RADIUS = 0.05 * PLAYER_SCALE; // Arm diameter
 
 // Disc dimensions (standard ultimate disc is ~27cm diameter)
-export const DISC_RADIUS = 0.135; // 10.75" diameter / 2 = 5.375"
-export const DISC_HEIGHT = 0.03; // ~1.2" height
+// Scaled up 50% for visibility (actual disc would be tiny at game scale)
+export const DISC_RADIUS = 0.2; // Visible disc radius (~40cm diameter)
+export const DISC_HEIGHT = 0.04; // Disc thickness

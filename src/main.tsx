@@ -16,7 +16,26 @@ function hideLoading() {
   if (loading) {
     loading.hidden = true;
   }
+  // Clear timeout warning if it exists
+  if (loadingTimeoutId) {
+    clearTimeout(loadingTimeoutId);
+    loadingTimeoutId = null;
+  }
 }
+
+// Show warning if loading takes too long (15 seconds)
+const LOADING_TIMEOUT_MS = 15000;
+let loadingTimeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+  if (loading && !loading.hidden) {
+    const warningEl = document.createElement("p");
+    warningEl.textContent =
+      "Loading is taking longer than expected. Please check your connection or try refreshing.";
+    warningEl.style.cssText =
+      "color: #fbbf24; font-size: 0.875rem; margin-top: 1rem; text-align: center;";
+    loading.appendChild(warningEl);
+  }
+  loadingTimeoutId = null;
+}, LOADING_TIMEOUT_MS);
 
 // Create the React root (only once)
 const root = createRoot(container);

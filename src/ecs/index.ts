@@ -15,6 +15,9 @@ export {
 // Resource management
 export { registerDisposable } from "./world";
 
+// Type guards
+export { isPlayer, isDisc, hasPhysics } from "./world";
+
 // Types
 export type {
   Entity,

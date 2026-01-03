@@ -10,13 +10,16 @@ import { useEffect, useRef } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useSimulationStore } from "@/stores";
 
+/** Debounce delay for speed controls (ms) */
+const SPEED_DEBOUNCE_MS = 150;
+
 /**
  * Handles keyboard input for game controls.
  *
  * Supports:
  * - Space: Toggle pause
- * - Arrow Up/W: Increase simulation speed
- * - Arrow Down/S: Decrease simulation speed
+ * - Arrow Up/W: Increase simulation speed (debounced)
+ * - Arrow Down/S: Decrease simulation speed (debounced)
  */
 export function KeyboardHandler() {
   const setIsPaused = useSimulationStore((s) => s.setIsPaused);
@@ -27,6 +30,7 @@ export function KeyboardHandler() {
 
   // Track key state for debouncing
   const pausePressedRef = useRef(false);
+  const lastSpeedChangeRef = useRef(0);
 
   useEffect(() => {
     // Subscribe to key changes
@@ -46,6 +50,11 @@ export function KeyboardHandler() {
       (state) => state.speedUp,
       (pressed) => {
         if (pressed) {
+          const now = Date.now();
+          // Debounce rapid key presses
+          if (now - lastSpeedChangeRef.current < SPEED_DEBOUNCE_MS) return;
+          lastSpeedChangeRef.current = now;
+
           const currentSpeed = useSimulationStore.getState().simulationSpeed;
           const newSpeed = Math.min(currentSpeed + 0.25, 4);
           setSimulationSpeed(newSpeed);
@@ -57,6 +66,11 @@ export function KeyboardHandler() {
       (state) => state.slowDown,
       (pressed) => {
         if (pressed) {
+          const now = Date.now();
+          // Debounce rapid key presses
+          if (now - lastSpeedChangeRef.current < SPEED_DEBOUNCE_MS) return;
+          lastSpeedChangeRef.current = now;
+
           const currentSpeed = useSimulationStore.getState().simulationSpeed;
           const newSpeed = Math.max(currentSpeed - 0.25, 0.25);
           setSimulationSpeed(newSpeed);

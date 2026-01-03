@@ -1,48 +1,6 @@
 import { memo } from "react";
 import { CuboidCollider, RigidBody } from "@react-three/rapier";
-import {
-  FIELD_LENGTH,
-  FIELD_WIDTH,
-  END_ZONE_DEPTH,
-  DOME_LENGTH,
-  DOME_WIDTH,
-} from "@/constants";
-import type { EndZoneSensorProps } from "@/types";
-import { useSimulationStore } from "@/stores";
-
-/**
- * End zone scoring sensor component
- * Detects when the disc enters the end zone
- */
-const EndZoneSensor = memo(function EndZoneSensor({
-  team,
-  position,
-}: EndZoneSensorProps) {
-  const score = useSimulationStore((s) => s.score);
-  const phase = useSimulationStore((s) => s.phase);
-
-  return (
-    <RigidBody type="fixed" position={position} sensor>
-      <CuboidCollider
-        args={[FIELD_WIDTH / 2, 5, END_ZONE_DEPTH / 2]}
-        sensor
-        onIntersectionEnter={(payload) => {
-          // Only score during active play
-          if (phase !== "playing") return;
-
-          // Check if it's the disc entering
-          const userData = payload.other.rigidBody?.userData as
-            | { type?: string }
-            | undefined;
-          if (userData?.type === "disc") {
-            // Home team scores in positive Z end zone, Away in negative Z
-            score(team);
-          }
-        }}
-      />
-    </RigidBody>
-  );
-});
+import { DOME_LENGTH, DOME_WIDTH } from "@/constants";
 
 /**
  * Physics world setup with ground plane, boundaries, and scoring sensors
@@ -79,18 +37,12 @@ export const PhysicsWorld = memo(function PhysicsWorld() {
         <CuboidCollider args={[1, 5, halfLength]} />
       </RigidBody>
 
-      {/* End zone scoring sensors */}
-      {/* Home team scores at positive Z (away's end zone) */}
-      <EndZoneSensor
-        team="home"
-        position={[0, 2.5, FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2]}
-      />
-
-      {/* Away team scores at negative Z (home's end zone) */}
-      <EndZoneSensor
-        team="away"
-        position={[0, 2.5, -(FIELD_LENGTH / 2 - END_ZONE_DEPTH / 2)]}
-      />
+      {/*
+        End zone scoring sensors - DISABLED
+        These incorrectly triggered scoring when disc entered end zone airspace.
+        In ultimate frisbee, scoring requires catching the disc in the end zone.
+        Scoring is now handled by checkScoring() in discSystem.ts after catches.
+      */}
     </group>
   );
 });
