@@ -4,6 +4,13 @@
  * Uses drei's CameraShake with intensity controlled by game events.
  * Subscribes to the useCameraShake store for reactive intensity changes.
  *
+ * NOTE: This component is currently NOT USED because drei's CameraShake
+ * conflicts with OrbitControls (both try to control the camera). The shake
+ * events are still triggered in simulationStore.ts but have no visible effect.
+ * To enable camera shake, either:
+ * 1. Replace OrbitControls with manual camera controls
+ * 2. Implement custom shake logic that works with OrbitControls
+ *
  * @module components/controls/CameraShakeController
  */
 

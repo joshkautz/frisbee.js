@@ -19,6 +19,7 @@ import {
   HEAD_RADIUS,
   LEG_HEIGHT,
   LEG_RADIUS,
+  LEG_PIVOT_OFFSET,
   ARM_LENGTH,
   ARM_RADIUS,
   ARM_TOTAL_LENGTH,
@@ -90,6 +91,22 @@ const PULL_BODY_WINDUP_Y = -Math.PI / 8; // -22.5 degrees (slight rotate back)
 /** Body rotation during pull release (slight rotation through) */
 const PULL_BODY_RELEASE_Y = Math.PI / 8; // +22.5 degrees (slight rotate forward)
 
+// ----------------------------------------------------------------------------
+// Running Animation
+// ----------------------------------------------------------------------------
+
+/** Minimum speed to trigger running animation (m/s) */
+const RUN_SPEED_THRESHOLD = 0.5;
+
+/** Running cycle frequency (cycles per second) */
+const RUN_CYCLE_FREQUENCY = 3;
+
+/** Maximum leg swing angle (radians) - forward/back from vertical */
+const LEG_SWING_AMPLITUDE = Math.PI / 6; // ±30 degrees
+
+/** Maximum arm swing angle during running (radians) */
+const ARM_SWING_AMPLITUDE = Math.PI / 8; // ±22.5 degrees
+
 /**
  * Smooth easing function for natural motion.
  * Uses smoothstep for buttery animation.
@@ -116,6 +133,9 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const rightArmPivotRef = useRef<THREE.Group>(null); // Pivot at shoulder for rotation
+  const leftArmPivotRef = useRef<THREE.Group>(null); // Pivot at shoulder for running
+  const leftLegPivotRef = useRef<THREE.Group>(null); // Pivot at hip for running
+  const rightLegPivotRef = useRef<THREE.Group>(null); // Pivot at hip for running
   const targetPosition = useRef(new THREE.Vector3());
   const prefersReducedMotion = useReducedMotion();
 
@@ -126,6 +146,11 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
     progress: 0,
     wasThrowingState: false,
     wasPullingState: false,
+  });
+
+  // Running animation state
+  const runningRef = useRef({
+    phase: 0, // Current position in run cycle (0 to 2π)
   });
 
   // Reusable vector for hand position calculation (per-instance to avoid shared state)
@@ -301,6 +326,58 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
     }
 
     // ========================================================================
+    // Running Animation
+    // ========================================================================
+    const speed = Math.sqrt(
+      (entity.velocity?.x ?? 0) ** 2 + (entity.velocity?.z ?? 0) ** 2
+    );
+    const isRunning = speed > RUN_SPEED_THRESHOLD;
+
+    if (isRunning && !prefersReducedMotion) {
+      // Advance run cycle phase based on time
+      runningRef.current.phase += delta * RUN_CYCLE_FREQUENCY * Math.PI * 2;
+
+      // Keep phase in 0-2π range
+      if (runningRef.current.phase > Math.PI * 2) {
+        runningRef.current.phase -= Math.PI * 2;
+      }
+
+      const phase = runningRef.current.phase;
+
+      // Leg swing (X rotation - forward/back)
+      // Left leg forward when right leg back (opposite phase)
+      const leftLegSwing = Math.sin(phase) * LEG_SWING_AMPLITUDE;
+      const rightLegSwing = Math.sin(phase + Math.PI) * LEG_SWING_AMPLITUDE;
+
+      if (leftLegPivotRef.current) {
+        leftLegPivotRef.current.rotation.x = leftLegSwing;
+      }
+      if (rightLegPivotRef.current) {
+        rightLegPivotRef.current.rotation.x = rightLegSwing;
+      }
+
+      // Arm swing (opposite to legs - natural running motion)
+      // Left arm swings with right leg, right arm swings with left leg
+      const leftArmSwing = Math.sin(phase + Math.PI) * ARM_SWING_AMPLITUDE;
+      const rightArmSwing = Math.sin(phase) * ARM_SWING_AMPLITUDE;
+
+      if (leftArmPivotRef.current) {
+        leftArmPivotRef.current.rotation.x = leftArmSwing;
+      }
+
+      // Only animate right arm running swing if NOT throwing/pulling
+      if (rightArmPivotRef.current && !anim.isAnimating) {
+        rightArmPivotRef.current.rotation.x = rightArmSwing;
+      }
+    } else if (!prefersReducedMotion) {
+      // Reset limbs to neutral when stopped (but not during reduced motion)
+      if (leftLegPivotRef.current) leftLegPivotRef.current.rotation.x = 0;
+      if (rightLegPivotRef.current) rightLegPivotRef.current.rotation.x = 0;
+      if (leftArmPivotRef.current) leftArmPivotRef.current.rotation.x = 0;
+      // Don't reset right arm X rotation - let throw animation handle it
+    }
+
+    // ========================================================================
     // Update Hand World Position for Disc Attachment
     // ========================================================================
     if (rightArmPivotRef.current && entity.handWorldPosition) {
@@ -358,24 +435,35 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
             <primitive object={skinMaterial} attach="material" />
           </mesh>
 
-          {/* Left Leg */}
-          <mesh position={[-BODY_RADIUS / 2, LEG_HEIGHT / 2, 0]} castShadow>
-            <capsuleGeometry
-              args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]}
-            />
-            <primitive object={jerseyMaterial} attach="material" />
-          </mesh>
-
-          {/* Right Leg */}
-          <mesh position={[BODY_RADIUS / 2, LEG_HEIGHT / 2, 0]} castShadow>
-            <capsuleGeometry
-              args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]}
-            />
-            <primitive object={jerseyMaterial} attach="material" />
-          </mesh>
-
-          {/* Left Arm - pivot group at shoulder, mesh offset so shoulder end is at pivot */}
+          {/* Left Leg - pivot group at hip for running animation */}
           <group
+            ref={leftLegPivotRef}
+            position={[-BODY_RADIUS / 2, LEG_HEIGHT, 0]}
+          >
+            <mesh position={[0, LEG_PIVOT_OFFSET, 0]} castShadow>
+              <capsuleGeometry
+                args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]}
+              />
+              <primitive object={jerseyMaterial} attach="material" />
+            </mesh>
+          </group>
+
+          {/* Right Leg - pivot group at hip for running animation */}
+          <group
+            ref={rightLegPivotRef}
+            position={[BODY_RADIUS / 2, LEG_HEIGHT, 0]}
+          >
+            <mesh position={[0, LEG_PIVOT_OFFSET, 0]} castShadow>
+              <capsuleGeometry
+                args={[LEG_RADIUS, LEG_HEIGHT - LEG_RADIUS * 2, 4, 8]}
+              />
+              <primitive object={jerseyMaterial} attach="material" />
+            </mesh>
+          </group>
+
+          {/* Left Arm - pivot group at shoulder for running animation */}
+          <group
+            ref={leftArmPivotRef}
             position={[
               -(BODY_RADIUS + ARM_RADIUS),
               LEG_HEIGHT + BODY_HEIGHT - 0.2,

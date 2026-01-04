@@ -144,8 +144,6 @@ export function Game() {
 
           {/* Camera */}
           <CameraControls />
-          {/* CameraShakeController conflicts with OrbitControls */}
-          {/* <CameraShakeController /> */}
 
           {/* Debug Tools */}
           {showScaleReference && <ScaleReference />}

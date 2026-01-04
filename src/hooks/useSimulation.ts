@@ -143,12 +143,18 @@ function startPullAnimation(): void {
 /**
  * Restart the current point - resets all entities and performs a new pull.
  *
- * Cleanup sequence:
+ * Sequence:
  * 1. Reset Zustand store to initial state
  * 2. Clear and recreate all ECS entities
  * 3. Give disc to designated puller (resets disc flight state)
- * 4. Start pull animation
- * 5. Schedule pull throw at animation release point
+ * 4. Start pull animation after setup delay
+ * 5. Execute pull throw at animation release point
+ *
+ * Note: The nested setTimeout calls are not tracked for cleanup. This is
+ * acceptable because restartPoint is only called from user actions (not
+ * automatically), and the timeouts complete quickly (~1.5s total). In
+ * development, HMR may cause brief state inconsistency if triggered during
+ * the timeout window, but this has no production impact.
  *
  * @param setPhase - Function to update the game phase
  */

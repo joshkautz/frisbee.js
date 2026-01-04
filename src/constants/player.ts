@@ -40,6 +40,18 @@ export const ARM_TOTAL_LENGTH = ARM_LENGTH + 2 * ARM_RADIUS;
  */
 export const ARM_PIVOT_OFFSET = -(ARM_LENGTH / 2 + ARM_RADIUS);
 
+/**
+ * Total leg length including end caps.
+ * Capsule geometry = cylinder (LEG_HEIGHT) + 2 hemisphere caps (LEG_RADIUS each)
+ */
+export const LEG_TOTAL_LENGTH = LEG_HEIGHT + 2 * LEG_RADIUS;
+
+/**
+ * Offset to position leg mesh so hip end is at pivot point.
+ * The capsule origin is at center, so we offset by half the total length.
+ */
+export const LEG_PIVOT_OFFSET = -(LEG_HEIGHT / 2 + LEG_RADIUS);
+
 // Disc dimensions (standard ultimate disc is ~27cm diameter)
 // Scaled up 50% for visibility (actual disc would be tiny at game scale)
 export const DISC_RADIUS = 0.2; // Visible disc radius (~40cm diameter)

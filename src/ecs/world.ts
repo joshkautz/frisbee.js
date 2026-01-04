@@ -50,9 +50,13 @@ export interface StallComponent {
   count: number;
   /** Time since last count increment (seconds) */
   timeSinceLastCount: number;
-  /** ID of the marker (defender) counting */
+  /** ID of the marker (defender) counting, null if no marker in range */
   markerId: string | null;
-  /** Whether stall is currently active (marker within range) */
+  /**
+   * Whether stall is currently active (marker within range).
+   * Note: This is equivalent to `markerId !== null`, but kept as an explicit
+   * boolean for readability in UI components and conditional checks.
+   */
   isActive: boolean;
 }
 
