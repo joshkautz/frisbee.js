@@ -24,6 +24,8 @@ import {
   DISC_LIFT_MIN_SPEED,
   DISC_THROW_HEIGHT,
   DISC_GROUND_LEVEL,
+  BODY_RADIUS,
+  ARM_RADIUS,
 } from "@/constants";
 
 // ============================================================================
@@ -38,6 +40,13 @@ const MAX_SIMULATION_TIME = 10;
 
 /** Padding from field lines for target positions (meters) */
 const TARGET_PADDING = 2;
+
+/**
+ * Horizontal offset of throwing hand from player center.
+ * The right arm is positioned at BODY_RADIUS + ARM_RADIUS from the torso center.
+ * When facing downfield (+Z), this creates a +X offset for the release point.
+ */
+const HAND_X_OFFSET = BODY_RADIUS + ARM_RADIUS;
 
 // ============================================================================
 // Types
@@ -64,12 +73,16 @@ export interface PullVelocity {
  * Configuration for a pull throw.
  */
 export interface PullConfig {
-  /** Z position of the thrower (pulling team's end zone line) */
-  throwerZ: number;
   /** Start of the target end zone (Z coordinate) */
   endZoneStart: number;
   /** End of the target end zone (Z coordinate) */
   endZoneEnd: number;
+  /**
+   * Actual hand position at release time (from handWorldPosition).
+   * When provided, the trajectory is calculated from this exact position,
+   * ensuring the disc lands precisely on the target.
+   */
+  handPosition?: { x: number; y: number; z: number };
 }
 
 // ============================================================================
@@ -77,7 +90,19 @@ export interface PullConfig {
 // ============================================================================
 
 /**
- * Simulate disc trajectory to find landing Z position.
+ * Result of trajectory simulation.
+ */
+interface TrajectoryResult {
+  /** X position where disc lands */
+  landingX: number;
+  /** Z position where disc lands */
+  landingZ: number;
+  /** Total flight time in seconds */
+  flightTime: number;
+}
+
+/**
+ * Simulate disc trajectory to find landing position.
  *
  * Uses the same physics model as the main disc system:
  * - Gravity pulls the disc down
@@ -87,16 +112,21 @@ export interface PullConfig {
  * @param vx - Initial X velocity (meters/second)
  * @param vy - Initial Y velocity (meters/second)
  * @param vz - Initial Z velocity (meters/second)
+ * @param startX - Starting X position (meters)
+ * @param startY - Starting Y position (meters)
  * @param startZ - Starting Z position (meters)
- * @returns Z position where the disc lands
+ * @returns Landing position (X, Z) and flight time
  */
 function simulateTrajectory(
   vx: number,
   vy: number,
   vz: number,
+  startX: number,
+  startY: number,
   startZ: number
-): number {
-  let y = DISC_THROW_HEIGHT;
+): TrajectoryResult {
+  let x = startX;
+  let y = startY;
   let z = startZ;
   let velX = vx;
   let velY = vy;
@@ -121,56 +151,98 @@ function simulateTrajectory(
     velZ *= dragFactor;
 
     // Update position
+    x += velX * SIMULATION_TIMESTEP;
     y += velY * SIMULATION_TIMESTEP;
     z += velZ * SIMULATION_TIMESTEP;
 
     // Check if disc has landed
     if (y <= DISC_GROUND_LEVEL) {
-      return z;
+      return { landingX: x, landingZ: z, flightTime: t };
     }
   }
 
   // Return final position if max time reached (shouldn't happen normally)
-  return z;
+  return { landingX: x, landingZ: z, flightTime: MAX_SIMULATION_TIME };
 }
 
 /**
- * Find the Z velocity needed to land at a specific target Z position.
+ * Find velocities needed to land at a specific target position.
  *
- * Uses binary search to iteratively refine the velocity estimate.
- * Simulates the full trajectory for each candidate velocity.
+ * Uses binary search to iteratively refine both X and Z velocities.
+ * Simulates the full trajectory for each candidate to ensure accuracy.
  *
+ * @param targetX - Desired landing X position (meters)
  * @param targetZ - Desired landing Z position (meters)
  * @param vy - Vertical velocity component (meters/second)
- * @param vx - Lateral velocity component (meters/second)
- * @param throwerZ - Starting Z position of thrower (meters)
- * @returns Z velocity that will land the disc at the target
+ * @param startX - Starting X position (meters)
+ * @param startY - Starting Y position (meters)
+ * @param startZ - Starting Z position (meters)
+ * @returns Object with vx and vz velocities
  */
-function findVelocityForTargetZ(
+function findVelocitiesForTarget(
+  targetX: number,
   targetZ: number,
   vy: number,
-  vx: number,
-  throwerZ: number
-): number {
-  // Binary search bounds (reasonable range for ultimate throws)
-  let lowVelocity = 10;
-  let highVelocity = 100;
+  startX: number,
+  startY: number,
+  startZ: number
+): { vx: number; vz: number } {
+  // Start with rough estimates
+  let vx = 0;
+  let vz = 20;
 
-  // 20 iterations gives ~0.0001 precision, more than enough
+  // First, find Z velocity with vx=0 to get approximate flight characteristics
+  // Binary search for vz
+  let lowVz = 10;
+  let highVz = 100;
+
   for (let iteration = 0; iteration < 20; iteration++) {
-    const midVelocity = (lowVelocity + highVelocity) / 2;
-    const landingZ = simulateTrajectory(vx, vy, midVelocity, throwerZ);
+    vz = (lowVz + highVz) / 2;
+    const result = simulateTrajectory(vx, vy, vz, startX, startY, startZ);
 
-    if (landingZ < targetZ) {
-      // Disc landed short - need more velocity
-      lowVelocity = midVelocity;
+    if (result.landingZ < targetZ) {
+      lowVz = vz;
     } else {
-      // Disc landed long - need less velocity
-      highVelocity = midVelocity;
+      highVz = vz;
     }
   }
+  vz = (lowVz + highVz) / 2;
 
-  return (lowVelocity + highVelocity) / 2;
+  // Now find X velocity using binary search
+  // The X velocity affects flight time slightly (via horizontal speed affecting lift)
+  // so we iterate to converge on accurate values
+  let lowVx = -30;
+  let highVx = 30;
+
+  for (let iteration = 0; iteration < 20; iteration++) {
+    vx = (lowVx + highVx) / 2;
+    const result = simulateTrajectory(vx, vy, vz, startX, startY, startZ);
+
+    if (result.landingX < targetX) {
+      lowVx = vx;
+    } else {
+      highVx = vx;
+    }
+  }
+  vx = (lowVx + highVx) / 2;
+
+  // Final refinement: re-adjust vz since vx affects lift
+  lowVz = vz - 5;
+  highVz = vz + 5;
+
+  for (let iteration = 0; iteration < 10; iteration++) {
+    vz = (lowVz + highVz) / 2;
+    const result = simulateTrajectory(vx, vy, vz, startX, startY, startZ);
+
+    if (result.landingZ < targetZ) {
+      lowVz = vz;
+    } else {
+      highVz = vz;
+    }
+  }
+  vz = (lowVz + highVz) / 2;
+
+  return { vx, vz };
 }
 
 // ============================================================================
@@ -204,7 +276,7 @@ function findVelocityForTargetZ(
  * ```
  */
 export function calculatePullVelocity(config: PullConfig): PullVelocity {
-  const { throwerZ, endZoneStart, endZoneEnd } = config;
+  const { endZoneStart, endZoneEnd, handPosition } = config;
 
   // Random target position across the FULL end zone
   // Z: anywhere from front line to back line (with padding from lines)
@@ -219,26 +291,26 @@ export function calculatePullVelocity(config: PullConfig): PullVelocity {
   // Vertical velocity for a nice high arc (10-15 m/s up)
   const yVelocity = 10 + Math.random() * 5;
 
-  // Calculate X velocity needed to reach target X position
-  // Estimate flight time based on horizontal distance
-  const horizontalDistance = Math.sqrt(
-    targetX * targetX + (targetZ - throwerZ) * (targetZ - throwerZ)
-  );
-  const estimatedFlightTime = horizontalDistance / 25; // rough estimate at ~25 m/s
-  const xVelocity = targetX / estimatedFlightTime;
+  // Use actual hand position if provided (exact), otherwise use approximation
+  const startX = handPosition?.x ?? HAND_X_OFFSET;
+  const startY = handPosition?.y ?? DISC_THROW_HEIGHT;
+  const startZ = handPosition?.z ?? -(FIELD_LENGTH / 2 - END_ZONE_DEPTH);
 
-  // Calculate Z velocity needed to reach target Z position
-  const zVelocity = findVelocityForTargetZ(
+  // Calculate both X and Z velocities using trajectory simulation
+  // This ensures the disc lands exactly at the target position
+  const { vx, vz } = findVelocitiesForTarget(
+    targetX,
     targetZ,
     yVelocity,
-    xVelocity,
-    throwerZ
+    startX,
+    startY,
+    startZ
   );
 
   return {
-    x: xVelocity,
+    x: vx,
     y: yVelocity,
-    z: zVelocity,
+    z: vz,
     targetX,
     targetZ,
   };
@@ -251,29 +323,36 @@ export function calculatePullVelocity(config: PullConfig): PullVelocity {
  * - Home team pulls from their end zone line (negative Z)
  * - Target is the away team's end zone (positive Z)
  *
+ * @param handPosition - Optional actual hand position for exact trajectory calculation
  * @returns Default pull configuration
  */
-export function getDefaultPullConfig(): PullConfig {
+export function getDefaultPullConfig(handPosition?: {
+  x: number;
+  y: number;
+  z: number;
+}): PullConfig {
   const halfLength = FIELD_LENGTH / 2;
 
   return {
-    // Thrower stands at their end zone line
-    throwerZ: -(halfLength - END_ZONE_DEPTH),
     // Target is the opposing end zone
     endZoneStart: halfLength - END_ZONE_DEPTH,
     endZoneEnd: halfLength,
+    // Use actual hand position if provided
+    handPosition,
   };
 }
 
 /**
- * Execute a pull throw.
+ * Execute a pull throw with optional hand position for exact trajectory.
  *
- * Convenience function that combines configuration, calculation,
- * and provides the result in a ready-to-use format.
- *
+ * @param handPosition - Actual hand position at release time (from handWorldPosition)
  * @returns Pull velocity and target position
  */
-export function executePull(): PullVelocity {
-  const config = getDefaultPullConfig();
+export function executePull(handPosition?: {
+  x: number;
+  y: number;
+  z: number;
+}): PullVelocity {
+  const config = getDefaultPullConfig(handPosition);
   return calculatePullVelocity(config);
 }

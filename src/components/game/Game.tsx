@@ -14,7 +14,13 @@ import { A11yAnnouncer } from "@react-three/a11y";
 import { TEAM_HOME_COLOR, TEAM_AWAY_COLOR, FOG_COLOR } from "@/constants";
 import { Field, Dome, City, Lighting, PhysicsWorld } from "../environment";
 import { Team, Disc } from "../entities";
-import { Scoreboard, GameAnnouncer, HelpOverlay, GameOverlay } from "../ui";
+import {
+  Scoreboard,
+  GameAnnouncer,
+  HelpOverlay,
+  GameOverlay,
+  DiscLandingIndicator,
+} from "../ui";
 import { CameraControls, KeyboardHandler } from "../controls";
 import { SimulationController } from "../core";
 import { ScaleReference, DimensionsPanel, ThrowTargetZone } from "../debug";
@@ -55,6 +61,7 @@ const KEYBOARD_MAP = [
 export function Game() {
   const {
     showStats,
+    showLandingIndicator,
     enableEffects,
     bloomIntensity,
     showScaleReference,
@@ -132,6 +139,9 @@ export function Game() {
           <City />
           <Dome />
           <Field />
+
+          {/* Landing Indicator */}
+          {showLandingIndicator && <DiscLandingIndicator />}
 
           {/* Camera */}
           <CameraControls />

@@ -76,15 +76,26 @@ function findClosestPlayer(
 /**
  * Execute the pull throw to start a point.
  *
- * 1. Calculates the pull trajectory to a random endzone position
- * 2. Designates the closest receiving team player to catch the pull
- * 3. Throws the disc with the calculated velocity
+ * 1. Gets the puller's actual hand position for exact trajectory calculation
+ * 2. Calculates the pull trajectory to a random endzone position
+ * 3. Designates the closest receiving team player to catch the pull
+ * 4. Throws the disc with the calculated velocity
  *
  * The designated pull receiver will be the only player who chases the disc.
  * Other players on the receiving team will set up offensive positions.
  */
 function performPull(): void {
-  const pullData = executePull();
+  // Find the puller to get their actual hand position
+  let pullerHandPosition: { x: number; y: number; z: number } | undefined;
+  for (const player of allPlayers) {
+    if (player.id === PULLER_ID && player.handWorldPosition) {
+      pullerHandPosition = { ...player.handWorldPosition };
+      break;
+    }
+  }
+
+  // Calculate trajectory using actual hand position for exact accuracy
+  const pullData = executePull(pullerHandPosition);
   const discEntity = disc.first;
 
   if (discEntity?.disc) {
@@ -97,22 +108,29 @@ function performPull(): void {
     discEntity.disc.targetPosition = targetPosition;
 
     // Find the closest player on the receiving team (away team receives the pull)
-    const receivingTeam = awayPlayers.entities;
-    const pullReceiver = findClosestPlayer(
-      pullData.targetX,
-      pullData.targetZ,
-      receivingTeam
-    );
+    // Skip if debug flag is set (allows testing disc landing on ground)
+    const disablePullCatch = (
+      window as unknown as { disablePullCatch?: boolean }
+    ).disablePullCatch;
 
-    // Designate this player as the pull receiver
-    discEntity.disc.pullReceiverId = pullReceiver?.id ?? null;
+    if (!disablePullCatch) {
+      const receivingTeam = awayPlayers.entities;
+      const pullReceiver = findClosestPlayer(
+        pullData.targetX,
+        pullData.targetZ,
+        receivingTeam
+      );
 
-    // Immediately set the receiver's AI to run toward the landing spot
-    // (don't wait for their decision timer to expire)
-    if (pullReceiver?.ai) {
-      pullReceiver.ai.state = "catching";
-      pullReceiver.ai.targetPosition = { ...targetPosition };
-      pullReceiver.ai.decision = 0; // Force immediate re-evaluation after catch
+      // Designate this player as the pull receiver
+      discEntity.disc.pullReceiverId = pullReceiver?.id ?? null;
+
+      // Immediately set the receiver's AI to run toward the landing spot
+      // (don't wait for their decision timer to expire)
+      if (pullReceiver?.ai) {
+        pullReceiver.ai.state = "catching";
+        pullReceiver.ai.targetPosition = { ...targetPosition };
+        pullReceiver.ai.decision = 0; // Force immediate re-evaluation after catch
+      }
     }
   }
 

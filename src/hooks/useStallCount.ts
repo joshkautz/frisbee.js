@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { disc } from "@/ecs";
+import { getStallCount, isStallActive } from "@/systems";
 
 interface StallState {
   count: number;
@@ -36,8 +37,8 @@ export function useStallCount(): StallState {
 
     function pollStallState() {
       const discEntity = disc.first;
-      const count = discEntity?.stall?.count ?? 0;
-      const isActive = discEntity?.stall?.isActive ?? false;
+      const count = getStallCount();
+      const isActive = isStallActive();
       const newState: StallState = {
         count,
         isActive,

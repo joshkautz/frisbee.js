@@ -114,13 +114,16 @@ const ARM_SWING_AMPLITUDE = Math.PI / 8; // ±22.5 degrees
 // ----------------------------------------------------------------------------
 
 /** Marking animation cycle frequency (cycles per second) */
-const MARK_CYCLE_FREQUENCY = 2;
+const MARK_CYCLE_FREQUENCY = 1.2;
 
 /** Arms up angle for marking (from rest position toward overhead) */
 const MARK_ARM_UP_Z = Math.PI / 2; // 90 degrees from body (horizontal)
 
 /** Legs spread angle for marking (outward from vertical) */
 const MARK_LEG_SPREAD_Z = Math.PI / 6; // 30 degrees outward
+
+/** Jump height during marking animation (meters) */
+const MARK_JUMP_HEIGHT = 0.15;
 
 /**
  * Smooth easing function for natural motion.
@@ -388,9 +391,17 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
       if (rightLegPivotRef.current) {
         rightLegPivotRef.current.rotation.set(0, 0, legSpread);
       }
+
+      // Vertical jump - player jumps up when arms/legs are spread
+      if (bodyRef.current) {
+        bodyRef.current.position.y = MARK_JUMP_HEIGHT * markPhase;
+      }
     } else {
-      // Reset marking phase when not marking
+      // Reset marking phase and jump position when not marking
       cyclicAnimationRef.current.markingPhase = 0;
+      if (bodyRef.current) {
+        bodyRef.current.position.y = 0;
+      }
 
       // ========================================================================
       // Running Animation

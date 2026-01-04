@@ -39,6 +39,13 @@ import {
   DISC_GRAVITY,
   DISC_LIFT_COEFFICIENT,
   END_ZONE_DEPTH,
+  POSITION_SNAP_THRESHOLD_SQ,
+  MIN_THROW_DISTANCE,
+  THROW_DEFAULT_VERTICAL_VELOCITY,
+  THROW_CATCH_HEIGHT,
+  THROW_MIN_SPEED,
+  THROW_MAX_SPEED,
+  THROW_SPEED_SCALING_DISTANCE,
 } from "@/constants";
 import {
   distanceSquared2D,
@@ -331,7 +338,10 @@ export function updateAI(delta: number): void {
           if (isDesignatedReceiver) {
             // This player is designated to catch (or no designation = regular throw)
             player.ai.state = "catching";
-            player.ai.targetPosition = discEntity.disc.targetPosition;
+            // Copy target position to avoid mutation bugs (don't assign by reference)
+            player.ai.targetPosition = discEntity.disc.targetPosition
+              ? { ...discEntity.disc.targetPosition }
+              : null;
           } else {
             // Not the designated receiver - set up for offense instead
             player.ai.state = "cutting";
@@ -405,8 +415,7 @@ export function updateAI(delta: number): void {
       const distSquared = dx * dx + dz * dz;
 
       // Use squared distance comparison to avoid sqrt when possible
-      if (distSquared > 0.25) {
-        // 0.5^2 = 0.25
+      if (distSquared > POSITION_SNAP_THRESHOLD_SQ) {
         const dist = Math.sqrt(distSquared);
         const speed =
           player.ai.state === "cutting" ? CUTTING_SPEED : PLAYER_SPEED;
@@ -422,7 +431,10 @@ export function updateAI(delta: number): void {
           player.velocity.z = (dz / dist) * speed;
         }
       } else {
-        // Reached target
+        // Snap to exact target position when close enough
+        player.position.x = player.ai.targetPosition.x;
+        player.position.z = player.ai.targetPosition.z;
+
         if (player.velocity) {
           player.velocity.x = 0;
           player.velocity.z = 0;
@@ -448,22 +460,20 @@ function calculateThrowVelocity(from: Position, to: Position): Position {
   const horizontalDist = Math.sqrt(dx * dx + dz * dz);
 
   // Prevent division by zero
-  if (horizontalDist < 0.1) {
-    return { x: 0, y: 5, z: 0 };
+  if (horizontalDist < MIN_THROW_DISTANCE) {
+    return { x: 0, y: THROW_DEFAULT_VERTICAL_VELOCITY, z: 0 };
   }
 
   // Release height and target catch height
-  const releaseHeight = 1.5;
-  const catchHeight = 1.0;
-  const heightDiff = catchHeight - releaseHeight; // Usually negative (throwing down to catch)
+  const releaseHeight = 1.5; // TODO: Use actual hand height when available
+  const heightDiff = THROW_CATCH_HEIGHT - releaseHeight;
 
   // Choose throw speed based on distance (faster for longer throws)
-  // Typical frisbee throws: 15-30 m/s
-  const minSpeed = 15;
-  const maxSpeed = 28;
   const throwSpeed = Math.min(
-    maxSpeed,
-    minSpeed + (horizontalDist / 40) * (maxSpeed - minSpeed)
+    THROW_MAX_SPEED,
+    THROW_MIN_SPEED +
+      (horizontalDist / THROW_SPEED_SCALING_DISTANCE) *
+        (THROW_MAX_SPEED - THROW_MIN_SPEED)
   );
 
   // Estimate flight time based on horizontal distance and speed
@@ -566,11 +576,16 @@ export function handleDiscThrow(): {
   }
 
   // Calculate velocity to land at target position
-  const velocity = calculateThrowVelocity(thrower.position, targetPosition);
+  // Use actual hand position for accurate trajectory (consistent with pull system)
+  const throwFrom =
+    thrower.handWorldPosition && thrower.handPositionInitialized
+      ? thrower.handWorldPosition
+      : thrower.position;
+  const velocity = calculateThrowVelocity(throwFrom, targetPosition);
 
-  // Set receiver to run toward the target position
+  // Set receiver to run toward the target position (copy to avoid mutation)
   if (receiver.ai) {
-    receiver.ai.targetPosition = targetPosition;
+    receiver.ai.targetPosition = { ...targetPosition };
     receiver.ai.state = "catching";
   }
 

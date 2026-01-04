@@ -16,6 +16,7 @@ import { useSimulationStore } from "@/stores";
  */
 export interface LevaControlValues {
   showStats: boolean;
+  showLandingIndicator: boolean;
   enableEffects: boolean;
   bloomIntensity: number;
   showScaleReference: boolean;
@@ -37,6 +38,7 @@ export interface LevaControlValues {
 export function useLevaControls(): LevaControlValues {
   const {
     showStats,
+    showLandingIndicator,
     simulationSpeed,
     isPaused,
     enableEffects,
@@ -70,6 +72,10 @@ export function useLevaControls(): LevaControlValues {
         value: false,
         label: "Show FPS",
       },
+      showLandingIndicator: {
+        value: true,
+        label: "Landing Indicator",
+      },
     }),
     Effects: folder({
       enableEffects: {
@@ -92,6 +98,15 @@ export function useLevaControls(): LevaControlValues {
       showThrowTargets: {
         value: false,
         label: "Throw Targets",
+      },
+      disablePullCatch: {
+        value: false,
+        label: "Disable Pull Catch",
+        onChange: (v: boolean) => {
+          (
+            window as unknown as { disablePullCatch: boolean }
+          ).disablePullCatch = v;
+        },
       },
     }),
   });
@@ -120,6 +135,7 @@ export function useLevaControls(): LevaControlValues {
 
   return {
     showStats,
+    showLandingIndicator,
     enableEffects,
     bloomIntensity,
     showScaleReference,

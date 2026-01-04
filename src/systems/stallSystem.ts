@@ -143,17 +143,3 @@ export function isStallActive(): boolean {
   const discEntity = disc.first;
   return discEntity?.stall?.isActive ?? false;
 }
-
-/**
- * Check if stalling is occurring (marker active with count > 0).
- *
- * This is the primary check for UI display purposes - returns true when
- * the game should display "stalling" status instead of "playing".
- *
- * @returns True if actively stalling with a count
- */
-export function isStalling(): boolean {
-  const discEntity = disc.first;
-  if (!discEntity?.stall) return false;
-  return discEntity.stall.isActive && discEntity.stall.count > 0;
-}

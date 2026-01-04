@@ -61,3 +61,36 @@ export const CUT_CANDIDATES = 10;
 
 /** Weight for preferring positions closer to end zone */
 export const END_ZONE_PREFERENCE_WEIGHT = 0.15;
+
+// ============================================================================
+// Movement Thresholds
+// ============================================================================
+
+/**
+ * Squared distance threshold for snapping to target position (meters²).
+ * When player is within sqrt(0.01) = 0.1m of target, snap to exact position.
+ * This prevents jittery micro-movements and floating point precision issues.
+ */
+export const POSITION_SNAP_THRESHOLD_SQ = 0.01;
+
+// ============================================================================
+// Throw Parameters
+// ============================================================================
+
+/** Minimum horizontal distance to attempt a throw (meters) */
+export const MIN_THROW_DISTANCE = 0.1;
+
+/** Default upward velocity for short throws (m/s) */
+export const THROW_DEFAULT_VERTICAL_VELOCITY = 5;
+
+/** Height at which receiver catches the disc (meters) */
+export const THROW_CATCH_HEIGHT = 1.0;
+
+/** Minimum throw speed (m/s) */
+export const THROW_MIN_SPEED = 15;
+
+/** Maximum throw speed (m/s) */
+export const THROW_MAX_SPEED = 28;
+
+/** Distance constant for throw speed scaling (meters) */
+export const THROW_SPEED_SCALING_DISTANCE = 40;
