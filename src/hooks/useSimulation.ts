@@ -21,18 +21,29 @@ import {
   updateDiscFlight,
   throwDisc,
   giveDiscTo,
+  updateDiscToFollowHolder,
   updateAI,
   handleDiscThrow,
   executePull,
+  updateStallCount,
+  resetStallCount,
 } from "@/systems";
 import { distanceSquared2D } from "@/utils";
+import { PULL_ANIMATION_DURATION } from "@/constants";
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-/** Delay before pull throw in milliseconds (allows players to set up) */
-const PULL_DELAY_MS = 1000;
+/** Delay before pull animation starts (allows players to set up) */
+const PULL_SETUP_DELAY_MS = 500;
+
+/** Pull release timing (disc leaves hand at 75% through animation) */
+const PULL_RELEASE_PHASE = 0.75;
+
+/** Time from animation start to disc release (in milliseconds) */
+const PULL_RELEASE_DELAY_MS =
+  PULL_ANIMATION_DURATION * PULL_RELEASE_PHASE * 1000;
 
 /** Player ID for the designated puller (home team player 4) */
 const PULLER_ID = "home-4";
@@ -118,13 +129,26 @@ function performPull(): void {
 }
 
 /**
+ * Set the puller's AI state to "pulling" to trigger the wind-up animation.
+ */
+function startPullAnimation(): void {
+  for (const player of allPlayers) {
+    if (player.id === PULLER_ID && player.ai) {
+      player.ai.state = "pulling";
+      return;
+    }
+  }
+}
+
+/**
  * Restart the current point - resets all entities and performs a new pull.
  *
  * Cleanup sequence:
  * 1. Reset Zustand store to initial state
  * 2. Clear and recreate all ECS entities
  * 3. Give disc to designated puller (resets disc flight state)
- * 4. Schedule pull throw after brief delay
+ * 4. Start pull animation
+ * 5. Schedule pull throw at animation release point
  *
  * @param setPhase - Function to update the game phase
  */
@@ -138,10 +162,16 @@ function restartPoint(setPhase: (phase: "pull" | "playing") => void): void {
   // Give disc to puller (giveDiscTo also resets disc flight state)
   giveDiscTo(PULLER_ID);
 
+  // Start the pull animation after setup delay
   setTimeout(() => {
-    performPull();
-    setPhase("playing");
-  }, 500);
+    startPullAnimation();
+
+    // Release the disc at the animation release point
+    setTimeout(() => {
+      performPull();
+      setPhase("playing");
+    }, PULL_RELEASE_DELAY_MS);
+  }, PULL_SETUP_DELAY_MS);
 }
 
 // ============================================================================
@@ -186,13 +216,19 @@ export function useSimulation() {
     // Expose restart function for UI
     window.restartThrow = () => restartPoint(setPhase);
 
-    // Schedule the pull throw after a short delay
+    // Start the pull animation after setup delay
+    const animationTimeout = setTimeout(() => {
+      startPullAnimation();
+    }, PULL_SETUP_DELAY_MS);
+
+    // Schedule the pull throw at animation release point
     const pullTimeout = setTimeout(() => {
       performPull();
       setPhase("playing");
-    }, PULL_DELAY_MS);
+    }, PULL_SETUP_DELAY_MS + PULL_RELEASE_DELAY_MS);
 
     return () => {
+      clearTimeout(animationTimeout);
       clearTimeout(pullTimeout);
       delete window.restartThrow;
       clearEntities();
@@ -205,9 +241,11 @@ export function useSimulation() {
     const state = useSimulationStore.getState();
     if (state.isPaused) return;
 
-    // Update disc physics when in flight
+    // Update disc physics when in flight, otherwise follow holder
     if (state.discInFlight) {
       updateDiscFlight(delta);
+    } else {
+      updateDiscToFollowHolder();
     }
 
     // Run AI during active gameplay phases (pull, playing, turnover)
@@ -241,6 +279,9 @@ export function useSimulation() {
 
       // When disc is not in flight, check if holder wants to throw
       if (state.phase === "playing" && !state.discInFlight) {
+        // Update stall count (marker counting when near thrower)
+        updateStallCount(delta);
+
         for (const player of allPlayers) {
           if (player.ai?.state === "throwing" && player.player?.hasDisc) {
             const throwResult = handleDiscThrow();
@@ -250,6 +291,8 @@ export function useSimulation() {
               if (discEntity?.disc) {
                 discEntity.disc.targetPosition = throwResult.targetPosition;
               }
+              // Reset stall count on throw
+              resetStallCount();
               // Execute the throw
               throwDisc(throwResult.velocity, throwResult.target);
             }

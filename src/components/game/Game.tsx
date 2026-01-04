@@ -14,7 +14,14 @@ import { A11yAnnouncer } from "@react-three/a11y";
 import { TEAM_HOME_COLOR, TEAM_AWAY_COLOR, FOG_COLOR } from "@/constants";
 import { Field, Dome, City, Lighting, PhysicsWorld } from "../environment";
 import { Team, Disc } from "../entities";
-import { Scoreboard, MobileControls, GameAnnouncer, HelpOverlay } from "../ui";
+import {
+  Scoreboard,
+  MobileControls,
+  GameAnnouncer,
+  HelpOverlay,
+  StallCounter,
+  GameOverlay,
+} from "../ui";
 import { CameraControls, KeyboardHandler } from "../controls";
 import { SimulationController } from "../core";
 import { ScaleReference, DimensionsPanel, ThrowTargetZone } from "../debug";
@@ -84,9 +91,11 @@ export function Game() {
       <div style={{ width: "100%", height: "100%" }}>
         {/* UI Overlays */}
         <Scoreboard />
+        <StallCounter />
         <MobileControls />
         <GameAnnouncer />
         <HelpOverlay />
+        <GameOverlay />
         {showScaleReference && <DimensionsPanel />}
 
         {/* 3D Canvas */}

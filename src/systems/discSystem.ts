@@ -29,7 +29,8 @@ import {
   DISC_THROW_HEIGHT,
   DISC_GROUND_LEVEL,
 } from "@/constants";
-import { isInEndZone, distanceSquared3D } from "@/utils";
+import { isInEndZone, distanceSquared3D, isInBounds } from "@/utils";
+import { FIELD_LENGTH, FIELD_WIDTH } from "@/constants";
 import type { Team } from "@/types";
 
 // Pre-compute squared catch radius for faster distance checks
@@ -119,6 +120,28 @@ export function updateDiscFlight(delta: number): void {
   // Check for catches (skip during pull phase - disc lands on ground)
   if (state.phase !== "pull") {
     checkForCatches(discEntity);
+  }
+
+  // Check for out-of-bounds (skip during pull - different rules apply)
+  if (state.phase !== "pull" && !isInBounds(discEntity.position)) {
+    // Disc went OOB - turnover at the boundary
+    const halfWidth = FIELD_WIDTH / 2;
+    const halfLength = FIELD_LENGTH / 2;
+
+    // Clamp disc to boundary where it went out
+    discEntity.position.x = Math.max(
+      -halfWidth,
+      Math.min(halfWidth, discEntity.position.x)
+    );
+    discEntity.position.z = Math.max(
+      -halfLength,
+      Math.min(halfLength, discEntity.position.z)
+    );
+    discEntity.position.y = DISC_GROUND_LEVEL;
+
+    resetDiscFlightState(discEntity);
+    state.turnover();
+    return;
   }
 
   // Check if disc hit the ground
@@ -213,10 +236,17 @@ export function throwDisc(
   if (holder?.player) {
     holder.player.hasDisc = false;
 
-    // Set disc position to thrower's release point
-    discEntity.position.x = holder.position.x;
-    discEntity.position.y = DISC_THROW_HEIGHT;
-    discEntity.position.z = holder.position.z;
+    // Use hand position as the release point (where the disc actually is)
+    if (holder.handWorldPosition) {
+      discEntity.position.x = holder.handWorldPosition.x;
+      discEntity.position.y = holder.handWorldPosition.y;
+      discEntity.position.z = holder.handWorldPosition.z;
+    } else {
+      // Fallback to player center if hand position not available
+      discEntity.position.x = holder.position.x;
+      discEntity.position.y = DISC_THROW_HEIGHT;
+      discEntity.position.z = holder.position.z;
+    }
 
     // Record thrower (they cannot catch their own throw)
     discEntity.disc.thrownBy = holder.id;
@@ -285,4 +315,48 @@ export function giveDiscTo(playerId: string): void {
 
     state.setDiscHolder(playerId);
   }
+}
+
+/**
+ * Update disc position to follow the current holder's hand.
+ * Called each frame when disc is not in flight.
+ *
+ * Uses the hand world position computed by Player.tsx, which accounts
+ * for all transforms (player position, facing, body rotation, arm animation).
+ */
+export function updateDiscToFollowHolder(): void {
+  const discEntity = disc.first;
+  if (!discEntity?.disc || discEntity.disc.inFlight) return;
+
+  // Find the current holder
+  let holder: Entity | null = null;
+  for (const p of allPlayers) {
+    if (p.player?.hasDisc) {
+      holder = p;
+      break;
+    }
+  }
+
+  if (!holder?.handWorldPosition) return;
+
+  // Check if hand position has been calculated yet (not still at default origin).
+  // On the first frame, Player.tsx hasn't run useFrame yet, so handWorldPosition
+  // is still (0,0,0). Fall back to player position to avoid disc flashing at origin.
+  const isValidHandPos =
+    holder.handWorldPosition.x !== 0 ||
+    holder.handWorldPosition.y !== 0 ||
+    holder.handWorldPosition.z !== 0;
+
+  if (!isValidHandPos) {
+    // Fall back to player position until hand position is calculated
+    discEntity.position.x = holder.position.x;
+    discEntity.position.y = DISC_HELD_HEIGHT;
+    discEntity.position.z = holder.position.z;
+    return;
+  }
+
+  // Use the computed hand world position directly
+  discEntity.position.x = holder.handWorldPosition.x;
+  discEntity.position.y = holder.handWorldPosition.y;
+  discEntity.position.z = holder.handWorldPosition.z;
 }

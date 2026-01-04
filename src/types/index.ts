@@ -24,6 +24,7 @@ export {
   type PlayerRole,
   type AIState,
   type SimulationState,
+  type AttackingDirection,
 } from "./game";
 
 // Component prop types

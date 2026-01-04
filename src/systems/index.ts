@@ -1,5 +1,10 @@
 export { updateAI, handleDiscThrow } from "./aiSystem";
-export { updateDiscFlight, throwDisc, giveDiscTo } from "./discSystem";
+export {
+  updateDiscFlight,
+  throwDisc,
+  giveDiscTo,
+  updateDiscToFollowHolder,
+} from "./discSystem";
 export {
   executePull,
   calculatePullVelocity,
@@ -7,3 +12,9 @@ export {
   type PullVelocity,
   type PullConfig,
 } from "./pullSystem";
+export {
+  updateStallCount,
+  resetStallCount,
+  getStallCount,
+  isStallActive,
+} from "./stallSystem";

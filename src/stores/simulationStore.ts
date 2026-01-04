@@ -9,8 +9,17 @@
 
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { GamePhase, Team, SimulationState } from "@/types";
-import { SCORE_CELEBRATION_TIME } from "@/constants";
+import type {
+  GamePhase,
+  Team,
+  SimulationState,
+  AttackingDirection,
+} from "@/types";
+import {
+  SCORE_CELEBRATION_TIME,
+  POINTS_TO_WIN,
+  HALFTIME_POINTS,
+} from "@/constants";
 import { useCameraShake } from "@/hooks/useCameraShake";
 
 const INITIAL_STATE = {
@@ -20,8 +29,19 @@ const INITIAL_STATE = {
   phase: "pull" as GamePhase,
   gameTime: 0,
   half: 1 as const,
+
+  // Game structure (USA Ultimate rules)
+  pointsToWin: POINTS_TO_WIN,
+  halftimeAt: HALFTIME_POINTS,
+  attackingDirection: { home: 1, away: -1 } as AttackingDirection,
+  isGameOver: false,
+  winner: null as Team | null,
+
+  // Disc state
   discHeldBy: null,
   discInFlight: false,
+
+  // Simulation controls
   isPaused: false,
   simulationSpeed: 1,
 };
@@ -48,24 +68,74 @@ export const useSimulationStore = create<SimulationState>()(
     ...INITIAL_STATE,
 
     score: (team: Team) => {
-      set((state) => ({
-        homeScore: team === "home" ? state.homeScore + 1 : state.homeScore,
-        awayScore: team === "away" ? state.awayScore + 1 : state.awayScore,
-        phase: "score",
+      const currentState = get();
+      const newHomeScore =
+        team === "home" ? currentState.homeScore + 1 : currentState.homeScore;
+      const newAwayScore =
+        team === "away" ? currentState.awayScore + 1 : currentState.awayScore;
+
+      // Check for halftime (first team to reach halftimeAt points)
+      const reachedHalftime =
+        !currentState.isGameOver &&
+        currentState.half === 1 &&
+        ((team === "home" && newHomeScore === currentState.halftimeAt) ||
+          (team === "away" && newAwayScore === currentState.halftimeAt));
+
+      // Check for game over (first team to reach pointsToWin)
+      const gameOver =
+        newHomeScore >= currentState.pointsToWin ||
+        newAwayScore >= currentState.pointsToWin;
+      const winner = gameOver
+        ? newHomeScore >= currentState.pointsToWin
+          ? "home"
+          : "away"
+        : null;
+
+      // Determine next phase
+      let nextPhase: GamePhase = "score";
+      if (gameOver) {
+        nextPhase = "endgame";
+      } else if (reachedHalftime) {
+        nextPhase = "halftime";
+      }
+
+      set({
+        homeScore: newHomeScore,
+        awayScore: newAwayScore,
+        phase: nextPhase,
         discHeldBy: null,
         discInFlight: false,
-      }));
+        isGameOver: gameOver,
+        winner,
+        // Switch attacking directions after each score
+        attackingDirection: {
+          home: (currentState.attackingDirection.home * -1) as 1 | -1,
+          away: (currentState.attackingDirection.away * -1) as 1 | -1,
+        },
+      });
 
       // Trigger strong camera shake for score
       useCameraShake.getState().shake("score");
 
-      // After celebration, switch possession and go to pull
-      scheduleTimeout(() => {
-        set({
-          possession: team === "home" ? "away" : "home",
-          phase: "pull",
-        });
-      }, SCORE_CELEBRATION_TIME * 1000);
+      // After celebration, switch possession and go to pull (unless game over or halftime)
+      if (!gameOver && !reachedHalftime) {
+        scheduleTimeout(() => {
+          set({
+            possession: team === "home" ? "away" : "home",
+            phase: "pull",
+          });
+        }, SCORE_CELEBRATION_TIME * 1000);
+      } else if (reachedHalftime) {
+        // Halftime: switch sides and possession, then go to pull after delay
+        scheduleTimeout(() => {
+          set({
+            half: 2,
+            possession: team === "home" ? "away" : "home",
+            phase: "pull",
+          });
+        }, SCORE_CELEBRATION_TIME * 2000); // Longer delay for halftime
+      }
+      // If game over, don't schedule any transition
     },
 
     turnover: () => {

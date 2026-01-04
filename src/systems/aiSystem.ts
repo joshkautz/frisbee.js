@@ -47,7 +47,7 @@ import {
   getTeamDirection,
   getEndZoneZ,
 } from "@/utils";
-import { FIELD_WIDTH } from "@/constants";
+import { FIELD_WIDTH, FIELD_LENGTH } from "@/constants";
 
 // Pre-compute squared thresholds to avoid sqrt in hot loops
 const AI_MEDIUM_RANGE_SQ = AI_MEDIUM_RANGE * AI_MEDIUM_RANGE;
@@ -250,18 +250,31 @@ export function updateAI(delta: number): void {
     return;
   }
 
-  const scaledDelta = delta * state.simulationSpeed;
   const discEntity = disc.first;
+
+  // OFFSIDES RULE: During pull phase, players must stay in position until disc is released.
+  // Both teams freeze until the pull is actually thrown (disc.inFlight becomes true).
+  if (state.phase === "pull" && !discEntity?.disc?.inFlight) {
+    // Clear velocities so players don't animate as moving
+    for (const player of allPlayers) {
+      if (player.velocity) {
+        player.velocity.x = 0;
+        player.velocity.z = 0;
+      }
+    }
+    return;
+  }
+
+  const scaledDelta = delta * state.simulationSpeed;
 
   // Use pre-defined ECS queries directly (no array copy/filter overhead)
   const homeTeam = homePlayers.entities;
   const awayTeam = awayPlayers.entities;
 
-  // During pull phase, the RECEIVING team (opposite of possession) should act as offense
-  // because they need to catch/pick up the disc
+  // During pull phase (disc in flight after pull), the RECEIVING team (opposite of possession)
+  // should act as offense because they need to catch/pick up the disc
   const isPullPhase =
-    state.phase === "pull" ||
-    (discEntity?.disc?.pullReceiverId !== null && discEntity?.disc?.inFlight);
+    discEntity?.disc?.pullReceiverId !== null && discEntity?.disc?.inFlight;
 
   // Iterate directly over ECS query (allPlayers already filters for entities with player + position + ai)
   for (const player of allPlayers) {
@@ -288,8 +301,23 @@ export function updateAI(delta: number): void {
 
       if (isOffense) {
         if (player.player.hasDisc) {
-          // Player has disc - decide to throw
-          player.ai.state = "throwing";
+          // Player has disc - decide to throw based on stall count pressure
+          const stallCount = discEntity?.stall?.count ?? 0;
+
+          // High stall count (7+): panic mode - must throw immediately
+          // Medium stall count (4-6): more aggressive, shorten decision time
+          // Low stall count (0-3): normal decision timing
+          if (stallCount >= 7) {
+            // Panic! Force immediate throw
+            player.ai.state = "throwing";
+            player.ai.decision = 0; // No delay
+          } else if (stallCount >= 4) {
+            // Getting urgent - throw soon
+            player.ai.state = "throwing";
+          } else {
+            // Normal pace - throw when ready
+            player.ai.state = "throwing";
+          }
         } else if (
           discEntity?.disc?.inFlight &&
           discEntity.disc.targetPosition
@@ -465,8 +493,8 @@ function calculateThrowVelocity(from: Position, to: Position): Position {
  */
 function getRandomEndzoneTarget(team: "home" | "away"): Position {
   const direction = getTeamDirection(team);
-  const halfLength = 50; // FIELD_LENGTH / 2
-  const halfWidth = 18.5; // FIELD_WIDTH / 2
+  const halfLength = FIELD_LENGTH / 2;
+  const halfWidth = FIELD_WIDTH / 2;
 
   // Endzone Z range (with small padding from lines)
   const endzoneStart =

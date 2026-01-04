@@ -70,11 +70,48 @@ export const CATCH_SUCCESS_RATE = 0.9;
 // Disc Heights
 // ============================================================================
 
-/** Height when player holds disc (meters) */
-export const DISC_HELD_HEIGHT = 1.0;
+/**
+ * Initial height when player catches/receives disc (meters).
+ * Used for initial positioning; actual hand position is computed dynamically
+ * by Player.tsx and updates the disc position every frame.
+ */
+export const DISC_HELD_HEIGHT = 1.25;
 
 /** Height when disc is released during throw (meters) */
 export const DISC_THROW_HEIGHT = 1.5;
 
 /** Ground collision threshold (meters) */
 export const DISC_GROUND_LEVEL = 0.1;
+
+// ============================================================================
+// Stall Count Rules (USA Ultimate)
+// ============================================================================
+
+/** Maximum stall count before turnover */
+export const MAX_STALL_COUNT = 10;
+
+/** Time between stall count increments (seconds) */
+export const STALL_INTERVAL = 1.0;
+
+/** Distance at which a marker can establish stall count (meters) */
+export const MARKING_DISTANCE = 3.0;
+
+// ============================================================================
+// Game Structure (USA Ultimate)
+// ============================================================================
+
+/** Points to win the game */
+export const POINTS_TO_WIN = 15;
+
+/** Points at halftime */
+export const HALFTIME_POINTS = 8;
+
+// ============================================================================
+// Animations
+// ============================================================================
+
+/** Duration of pull animation in seconds (longer wind-up for dramatic effect) */
+export const PULL_ANIMATION_DURATION = 1.2;
+
+/** Duration of regular throw animation in seconds (quick pass) */
+export const THROW_ANIMATION_DURATION = 0.5;

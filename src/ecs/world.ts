@@ -13,6 +13,7 @@ import { createReactAPI } from "miniplex-react";
 import * as THREE from "three";
 import type { RapierRigidBody } from "@react-three/rapier";
 import type { Vector3Object, Team, PlayerRole, AIState } from "@/types";
+import { FIELD_LENGTH, FIELD_WIDTH, END_ZONE_DEPTH } from "@/constants";
 
 /**
  * ECS Component Types
@@ -43,6 +44,18 @@ export interface DiscComponent {
   pullReceiverId: string | null;
 }
 
+/** Stall count component for tracking the marker's count (USA Ultimate rules) */
+export interface StallComponent {
+  /** Current stall count (0-10) */
+  count: number;
+  /** Time since last count increment (seconds) */
+  timeSinceLastCount: number;
+  /** ID of the marker (defender) counting */
+  markerId: string | null;
+  /** Whether stall is currently active (marker within range) */
+  isActive: boolean;
+}
+
 /** AI component for player behavior and decision-making */
 export interface AIComponent {
   state: AIState;
@@ -70,9 +83,12 @@ export type Entity = {
   velocity?: Velocity;
   player?: PlayerComponent;
   disc?: DiscComponent;
+  stall?: StallComponent;
   ai?: AIComponent;
   physicsRef?: PhysicsRef;
   meshRef?: MeshRef;
+  /** World position of the player's throwing hand (updated each frame) */
+  handWorldPosition?: Position;
 };
 
 /**
@@ -164,6 +180,7 @@ export function createPlayer(
     },
     physicsRef: { rigidBody: null },
     meshRef: { mesh: null },
+    handWorldPosition: { x: 0, y: 0, z: 0 },
   };
 
   world.add(entity);
@@ -184,6 +201,12 @@ export function createDisc(x: number, y: number, z: number): Entity {
       flightTime: 0,
       thrownBy: null,
       pullReceiverId: null,
+    },
+    stall: {
+      count: 0,
+      timeSinceLastCount: 0,
+      markerId: null,
+      isActive: false,
     },
     physicsRef: { rigidBody: null },
     meshRef: { mesh: null },
@@ -234,11 +257,19 @@ export function clearEntities(): void {
 export function initializeEntities(): void {
   clearEntities();
 
-  // Field width is 37m, so players spread from -15 to +15 (every 5m)
-  const xPositions = [-15, -10, -5, 0, 5, 10, 15];
+  // Goal line positions (where end zone meets playing field)
+  const goalLineZ = FIELD_LENGTH / 2 - END_ZONE_DEPTH;
 
-  // Home team (blue) - lined up on their end zone line (z = -32)
-  const homeZ = -32;
+  // Spread players across field width (7 players, evenly spaced)
+  const halfWidth = FIELD_WIDTH / 2;
+  const spacing = (halfWidth * 2 - 4) / 6; // Leave 2m padding on each side
+  const xPositions = Array.from(
+    { length: 7 },
+    (_, i) => -halfWidth + 2 + i * spacing
+  );
+
+  // Home team (blue) - lined up on their goal line (negative Z)
+  const homeZ = -goalLineZ;
   for (let i = 0; i < 7; i++) {
     createPlayer(
       "home",
@@ -249,8 +280,8 @@ export function initializeEntities(): void {
     );
   }
 
-  // Away team (red) - lined up on their end zone line (z = +32)
-  const awayZ = 32;
+  // Away team (red) - lined up on their goal line (positive Z)
+  const awayZ = goalLineZ;
   for (let i = 0; i < 7; i++) {
     createPlayer(
       "away",

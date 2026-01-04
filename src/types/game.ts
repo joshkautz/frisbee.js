@@ -41,13 +41,31 @@ export type PlayerRole = "handler" | "cutter";
 
 /**
  * AI behavior states for player decision-making.
+ *
+ * - `idle`: Standing still, waiting
+ * - `cutting`: Running to get open for a pass
+ * - `defending`: Guarding an opponent
+ * - `throwing`: About to throw a quick pass during gameplay
+ * - `catching`: Running to catch the disc
+ * - `pulling`: Winding up for the initial pull throw (longer animation)
  */
 export type AIState =
   | "idle"
   | "cutting"
   | "defending"
   | "throwing"
-  | "catching";
+  | "catching"
+  | "pulling";
+
+/**
+ * Attacking direction for each team.
+ * 1 = attacking positive Z (toward away end zone)
+ * -1 = attacking negative Z (toward home end zone)
+ */
+export interface AttackingDirection {
+  home: 1 | -1;
+  away: 1 | -1;
+}
 
 /**
  * Simulation state managed by Zustand store.
@@ -61,6 +79,13 @@ export interface SimulationState {
   phase: GamePhase;
   gameTime: number;
   half: 1 | 2;
+
+  // Game structure (USA Ultimate rules)
+  pointsToWin: number;
+  halftimeAt: number;
+  attackingDirection: AttackingDirection;
+  isGameOver: boolean;
+  winner: Team | null;
 
   // Disc state
   discHeldBy: string | null;

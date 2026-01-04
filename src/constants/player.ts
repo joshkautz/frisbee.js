@@ -25,8 +25,20 @@ export const LEG_HEIGHT = 0.85 * PLAYER_SCALE; // Leg length
 export const LEG_RADIUS = 0.07 * PLAYER_SCALE; // Thigh diameter
 
 // Arm dimensions
-export const ARM_LENGTH = 0.55 * PLAYER_SCALE; // Arm length
+export const ARM_LENGTH = 0.55 * PLAYER_SCALE; // Arm length (cylinder portion)
 export const ARM_RADIUS = 0.05 * PLAYER_SCALE; // Arm diameter
+
+/**
+ * Total arm length including end caps.
+ * Capsule geometry = cylinder (ARM_LENGTH) + 2 hemisphere caps (ARM_RADIUS each)
+ */
+export const ARM_TOTAL_LENGTH = ARM_LENGTH + 2 * ARM_RADIUS;
+
+/**
+ * Offset to position arm mesh so shoulder end is at pivot point.
+ * The capsule origin is at center, so we offset by half the total length.
+ */
+export const ARM_PIVOT_OFFSET = -(ARM_LENGTH / 2 + ARM_RADIUS);
 
 // Disc dimensions (standard ultimate disc is ~27cm diameter)
 // Scaled up 50% for visibility (actual disc would be tiny at game scale)
