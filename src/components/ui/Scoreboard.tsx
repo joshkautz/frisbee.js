@@ -1,97 +1,149 @@
 import { memo } from "react";
 import { useSpring, animated, config } from "@react-spring/web";
 import { useSimulationStore } from "@/stores";
-import { useReducedMotion } from "@/hooks";
+import { useReducedMotion, useStallCount } from "@/hooks";
+import { MAX_STALL_COUNT } from "@/constants";
+
+/** Consistent color for phase/status text */
+const PHASE_COLOR = "#ffffff";
 
 /**
- * Phase-specific colors for the game status indicator
+ * Animated score display with spring animation on mount.
+ * Uses key prop from parent to only animate when score changes.
  */
-const PHASE_COLORS: Record<string, string> = {
-  score: "#4ade80", // Green for score
-  turnover: "#f87171", // Red for turnover
-  playing: "#ffffff", // White for playing
-  pull: "#60a5fa", // Blue for pull
-};
-
-/**
- * Phase-specific icons for accessibility (not color-only)
- */
-const PHASE_ICONS: Record<string, string> = {
-  score: "🎯", // Target for score
-  turnover: "↺", // Rotate for turnover
-  playing: "●", // Dot for playing
-  pull: "↗", // Arrow for pull
-};
-
-/**
- * Animated score display with spring animation.
- * Respects user's reduced motion preference.
- */
-function AnimatedScore({ score, label }: { score: number; label: string }) {
+function ScoreDisplay({ score, label }: { score: number; label: string }) {
   const prefersReducedMotion = useReducedMotion();
 
-  const scaleSpring = useSpring({
-    scale: 1,
+  // Animate on mount only (no reset: true), parent uses key={score} to remount on change
+  const spring = useSpring({
     from: { scale: 1.3 },
+    to: { scale: 1 },
     config: config.wobbly,
-    reset: true,
-    immediate: prefersReducedMotion,
-  });
-
-  const numberSpring = useSpring({
-    number: score,
-    config: config.molasses,
     immediate: prefersReducedMotion,
   });
 
   return (
     <div style={{ textAlign: "center", minWidth: 40 }}>
-      <div style={{ fontSize: 10, opacity: 0.7 }}>{label}</div>
+      <div style={{ fontSize: 10, color: "rgba(255, 255, 255, 0.85)" }}>
+        {label}
+      </div>
       <animated.div
         style={{
           fontSize: 24,
           fontWeight: "bold",
-          transform: scaleSpring.scale.to((s: number) => `scale(${s})`),
+          transform: spring.scale.to((s) => `scale(${s})`),
         }}
       >
-        {numberSpring.number.to((n: number) => Math.floor(n))}
+        {score}
       </animated.div>
     </div>
   );
 }
 
 /**
- * Animated game phase indicator with fade/slide animation.
- * Respects user's reduced motion preference.
+ * Display labels for game phases.
  */
-function AnimatedPhase({ phase }: { phase: string }) {
-  const prefersReducedMotion = useReducedMotion();
+const PHASE_LABELS: Record<string, string> = {
+  pull: "pulling",
+  playing: "playing",
+  stalling: "stalling",
+  score: "score",
+  turnover: "turnover",
+};
 
-  const spring = useSpring({
-    opacity: 1,
-    y: 0,
-    from: { opacity: 0, y: -10 },
-    config: config.gentle,
-    reset: true,
-    immediate: prefersReducedMotion,
-  });
+/**
+ * Game phase indicator.
+ */
+function PhaseDisplay({
+  phase,
+  isStalling,
+}: {
+  phase: string;
+  isStalling: boolean;
+}) {
+  // Show "stalling" instead of "playing" when stall count is active
+  const displayPhase = phase === "playing" && isStalling ? "stalling" : phase;
 
   return (
-    <animated.div
+    <div
       style={{
         fontSize: 14,
         textTransform: "uppercase",
         fontWeight: 600,
-        color: PHASE_COLORS[phase] ?? "#ffffff",
-        opacity: spring.opacity,
-        transform: spring.y.to((y) => `translateY(${y}px)`),
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
+        color: PHASE_COLOR,
       }}
     >
-      <span aria-hidden="true">{PHASE_ICONS[phase] ?? "●"}</span>
-      {phase}
+      {PHASE_LABELS[displayPhase] ?? displayPhase}
+    </div>
+  );
+}
+
+/**
+ * Get stall count color with linear interpolation from green to red.
+ * Each count (1-10) has a unique color along the gradient.
+ */
+function getStallColor(count: number): string {
+  // Clamp to 1-10 range, normalize to 0-1
+  const t = Math.max(0, Math.min(1, (count - 1) / (MAX_STALL_COUNT - 1)));
+
+  // Green (74, 222, 128) -> Red (239, 68, 68)
+  const r = Math.round(74 + t * (239 - 74));
+  const g = Math.round(222 + t * (68 - 222));
+  const b = Math.round(128 + t * (68 - 128));
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Stall count indicator shown when a defender is marking the thrower.
+ * Fades in/out smoothly instead of appearing/disappearing abruptly.
+ */
+function StallIndicator({
+  count,
+  isActive,
+}: {
+  count: number;
+  isActive: boolean;
+}) {
+  const prefersReducedMotion = useReducedMotion();
+  const isVisible = isActive && count > 0;
+
+  const spring = useSpring({
+    opacity: isVisible ? 1 : 0,
+    scale: isVisible ? 1 : 0.8,
+    config: config.gentle,
+    immediate: prefersReducedMotion,
+  });
+
+  const color = getStallColor(count);
+
+  return (
+    <animated.div
+      style={{
+        opacity: spring.opacity,
+        transform: spring.scale.to((s) => `scale(${s})`),
+        display: "flex",
+        justifyContent: "center",
+        marginTop: 4,
+        pointerEvents: isVisible ? "auto" : "none",
+      }}
+      role="status"
+      aria-live="assertive"
+      aria-label={
+        isVisible ? `Stall count: ${count} of ${MAX_STALL_COUNT}` : ""
+      }
+      aria-hidden={!isVisible}
+    >
+      <span
+        style={{
+          fontSize: 20,
+          fontWeight: "bold",
+          color,
+          textShadow: `0 0 8px ${color}`,
+        }}
+      >
+        {count}
+      </span>
     </animated.div>
   );
 }
@@ -108,6 +160,7 @@ export const Scoreboard = memo(function Scoreboard() {
   // Only re-render when the displayed second changes, not every frame
   const gameTime = useSimulationStore((s) => Math.floor(s.gameTime));
   const prefersReducedMotion = useReducedMotion();
+  const { count: stallCount, isStalling } = useStallCount();
 
   const minutes = Math.floor(gameTime / 60);
   const seconds = gameTime % 60;
@@ -146,14 +199,23 @@ export const Scoreboard = memo(function Scoreboard() {
       aria-live="polite"
       aria-label={`Score: Home ${homeScore}, Away ${awayScore}. Time: ${minutes}:${seconds.toString().padStart(2, "0")}`}
     >
-      <AnimatedScore score={homeScore} label="HOME" />
-      <div style={{ textAlign: "center", minWidth: 50 }}>
-        <div style={{ fontSize: 11, opacity: 0.7 }}>
+      <ScoreDisplay key={`home-${homeScore}`} score={homeScore} label="HOME" />
+      <div
+        style={{
+          textAlign: "center",
+          width: 90, // Fixed width to prevent layout shift when phase text changes
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.85)" }}>
           {minutes}:{seconds.toString().padStart(2, "0")}
         </div>
-        <AnimatedPhase phase={phase} />
+        <PhaseDisplay phase={phase} isStalling={isStalling} />
+        <StallIndicator count={stallCount} isActive={isStalling} />
       </div>
-      <AnimatedScore score={awayScore} label="AWAY" />
+      <ScoreDisplay key={`away-${awayScore}`} score={awayScore} label="AWAY" />
     </animated.div>
   );
 });

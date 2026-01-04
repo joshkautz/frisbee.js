@@ -79,7 +79,7 @@ function TargetMarker({ position }: { position: [number, number, number] }) {
  * - WASD / Arrow keys: Move the target point on the XZ plane
  */
 export function CameraControls({
-  minDistance = 30,
+  minDistance = 10,
   maxDistance = 150,
   maxPolarAngle = Math.PI / 2.1,
 }: CameraControlsProps) {

@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useControls, folder } from "leva";
+import { useControls, folder, button } from "leva";
 import { useSimulationStore } from "@/stores";
 
 /**
@@ -45,6 +45,16 @@ export function useLevaControls(): LevaControlValues {
     showThrowTargets,
   } = useControls({
     Simulation: folder({
+      restart: button(() => {
+        if (window.restartThrow) {
+          window.restartThrow();
+        }
+      }),
+      controls: button(() => {
+        if (window.showControls) {
+          window.showControls();
+        }
+      }),
       isPaused: {
         value: false,
         label: "Paused",

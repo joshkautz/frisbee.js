@@ -99,11 +99,18 @@ export const DimensionsPanel = memo(function DimensionsPanel() {
               background: "none",
               border: "1px solid #666",
               color: "#fff",
-              padding: "2px 8px",
+              minWidth: 44,
+              minHeight: 44,
+              padding: "8px 12px",
               borderRadius: "4px",
               cursor: "pointer",
-              fontSize: "10px",
+              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
+            aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+            aria-expanded={isExpanded}
           >
             {isExpanded ? "−" : "+"}
           </button>

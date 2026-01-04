@@ -68,6 +68,35 @@ export interface AttackingDirection {
 }
 
 /**
+ * Pull timing phases for frame-based timing.
+ *
+ * - `setup`: Waiting before animation starts
+ * - `animating`: Animation playing, waiting for release point
+ */
+export type PullTimingPhase = "setup" | "animating";
+
+/**
+ * Pull timing state for frame-based timing.
+ * Null when no pull timing is active.
+ */
+export interface PullTimingState {
+  phase: PullTimingPhase;
+  elapsed: number; // Elapsed simulation time in current phase (seconds)
+}
+
+/**
+ * Celebration timing state for frame-based timing after a score.
+ * Null when no celebration is active.
+ */
+export interface CelebrationTimingState {
+  elapsed: number; // Elapsed simulation time (seconds)
+  duration: number; // Total duration to wait (seconds)
+  nextPossession: Team; // Team that gets possession after celebration
+  nextPhase: GamePhase; // Phase to transition to (usually "pull")
+  nextHalf?: 2; // If set, transition to second half
+}
+
+/**
  * Simulation state managed by Zustand store.
  * Includes both game state and simulation controls.
  */
@@ -95,6 +124,10 @@ export interface SimulationState {
   isPaused: boolean;
   simulationSpeed: number;
 
+  // Frame-based timing (replaces setTimeout)
+  pullTiming: PullTimingState | null;
+  celebrationTiming: CelebrationTimingState | null;
+
   // Actions
   score: (team: Team) => void;
   turnover: () => void;
@@ -107,4 +140,13 @@ export interface SimulationState {
   setSimulationSpeed: (speed: number) => void;
   tick: (delta: number) => void;
   reset: () => void;
+
+  // Pull timing actions
+  startPullTiming: () => void;
+  advancePullTiming: (delta: number) => PullTimingPhase | "complete" | null;
+  clearPullTiming: () => void;
+
+  // Celebration timing actions
+  advanceCelebrationTiming: (delta: number) => "complete" | null;
+  clearCelebrationTiming: () => void;
 }

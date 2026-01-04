@@ -13,6 +13,8 @@ import { A11y } from "@react-three/a11y";
 import * as THREE from "three";
 import { damp3, dampAngle } from "maath/easing";
 import { useReducedMotion } from "@/hooks";
+import { useSimulationStore } from "@/stores";
+import { disc } from "@/ecs";
 import {
   BODY_HEIGHT,
   BODY_RADIUS,
@@ -107,6 +109,19 @@ const LEG_SWING_AMPLITUDE = Math.PI / 6; // ±30 degrees
 /** Maximum arm swing angle during running (radians) */
 const ARM_SWING_AMPLITUDE = Math.PI / 8; // ±22.5 degrees
 
+// ----------------------------------------------------------------------------
+// Marking Animation (jumping jacks for defender marking the thrower)
+// ----------------------------------------------------------------------------
+
+/** Marking animation cycle frequency (cycles per second) */
+const MARK_CYCLE_FREQUENCY = 2;
+
+/** Arms up angle for marking (from rest position toward overhead) */
+const MARK_ARM_UP_Z = Math.PI / 2; // 90 degrees from body (horizontal)
+
+/** Legs spread angle for marking (outward from vertical) */
+const MARK_LEG_SPREAD_Z = Math.PI / 6; // 30 degrees outward
+
 /**
  * Smooth easing function for natural motion.
  * Uses smoothstep for buttery animation.
@@ -138,9 +153,10 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
   const rightLegPivotRef = useRef<THREE.Group>(null); // Pivot at hip for running
   const targetPosition = useRef(new THREE.Vector3());
   const prefersReducedMotion = useReducedMotion();
+  const simulationSpeed = useSimulationStore((s) => s.simulationSpeed);
 
-  // Animation state (shared for both throw and pull)
-  const animationRef = useRef({
+  // Throw/pull animation state (one-shot animations with progress)
+  const throwAnimationRef = useRef({
     isAnimating: false,
     isPull: false, // true for pull, false for regular throw
     progress: 0,
@@ -148,9 +164,11 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
     wasPullingState: false,
   });
 
-  // Running animation state
-  const runningRef = useRef({
-    phase: 0, // Current position in run cycle (0 to 2π)
+  // Cyclic limb animation phases (continuous oscillating animations)
+  // Consolidated into single ref to minimize overhead
+  const cyclicAnimationRef = useRef({
+    runningPhase: 0, // Running cycle position (0 to 2π)
+    markingPhase: 0, // Marking/jumping-jack cycle position (0 to 2π)
   });
 
   // Reusable vector for hand position calculation (per-instance to avoid shared state)
@@ -221,7 +239,7 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
     // ========================================================================
     // Throw/Pull Animation
     // ========================================================================
-    const anim = animationRef.current;
+    const anim = throwAnimationRef.current;
     const isThrowingState =
       entity.ai?.state === "throwing" && entity.player?.hasDisc;
     const isPullingState =
@@ -248,7 +266,7 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
       const duration = anim.isPull
         ? PULL_ANIMATION_DURATION
         : THROW_ANIMATION_DURATION;
-      anim.progress += delta / duration;
+      anim.progress += (delta * simulationSpeed) / duration;
 
       if (anim.progress >= 1) {
         // Animation complete - reset to rest position
@@ -326,55 +344,106 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
     }
 
     // ========================================================================
-    // Running Animation
+    // Marking Animation (jumping jacks - takes priority over running)
     // ========================================================================
-    const speed = Math.sqrt(
-      (entity.velocity?.x ?? 0) ** 2 + (entity.velocity?.z ?? 0) ** 2
-    );
-    const isRunning = speed > RUN_SPEED_THRESHOLD;
+    const discEntity = disc.first;
+    const isMarking = discEntity?.stall?.markerId === entity.id;
 
-    if (isRunning && !prefersReducedMotion) {
-      // Advance run cycle phase based on time
-      runningRef.current.phase += delta * RUN_CYCLE_FREQUENCY * Math.PI * 2;
+    if (isMarking && !prefersReducedMotion) {
+      // Advance marking cycle phase based on time (scaled by simulation speed)
+      cyclicAnimationRef.current.markingPhase +=
+        delta * simulationSpeed * MARK_CYCLE_FREQUENCY * Math.PI * 2;
 
       // Keep phase in 0-2π range
-      if (runningRef.current.phase > Math.PI * 2) {
-        runningRef.current.phase -= Math.PI * 2;
+      if (cyclicAnimationRef.current.markingPhase > Math.PI * 2) {
+        cyclicAnimationRef.current.markingPhase -= Math.PI * 2;
       }
 
-      const phase = runningRef.current.phase;
+      // Use absolute value of sin for smooth up-down motion (0 to 1 to 0)
+      const markPhase = Math.abs(
+        Math.sin(cyclicAnimationRef.current.markingPhase)
+      );
 
-      // Leg swing (X rotation - forward/back)
-      // Left leg forward when right leg back (opposite phase)
-      const leftLegSwing = Math.sin(phase) * LEG_SWING_AMPLITUDE;
-      const rightLegSwing = Math.sin(phase + Math.PI) * LEG_SWING_AMPLITUDE;
-
-      if (leftLegPivotRef.current) {
-        leftLegPivotRef.current.rotation.x = leftLegSwing;
-      }
-      if (rightLegPivotRef.current) {
-        rightLegPivotRef.current.rotation.x = rightLegSwing;
-      }
-
-      // Arm swing (opposite to legs - natural running motion)
-      // Left arm swings with right leg, right arm swings with left leg
-      const leftArmSwing = Math.sin(phase + Math.PI) * ARM_SWING_AMPLITUDE;
-      const rightArmSwing = Math.sin(phase) * ARM_SWING_AMPLITUDE;
+      // Arms go from rest position up toward horizontal (both arms mirror each other)
+      // Left arm: -ARM_REST_Z (rest) to -MARK_ARM_UP_Z (up)
+      // Right arm: +ARM_REST_Z (rest) to +MARK_ARM_UP_Z (up)
+      const leftArmZ = -ARM_REST_Z - (MARK_ARM_UP_Z - ARM_REST_Z) * markPhase;
+      const rightArmZ = ARM_REST_Z + (MARK_ARM_UP_Z - ARM_REST_Z) * markPhase;
 
       if (leftArmPivotRef.current) {
-        leftArmPivotRef.current.rotation.x = leftArmSwing;
+        leftArmPivotRef.current.rotation.set(0, 0, leftArmZ);
+      }
+      if (rightArmPivotRef.current && !anim.isAnimating) {
+        rightArmPivotRef.current.rotation.set(0, 0, rightArmZ);
       }
 
-      // Only animate right arm running swing if NOT throwing/pulling
-      if (rightArmPivotRef.current && !anim.isAnimating) {
-        rightArmPivotRef.current.rotation.x = rightArmSwing;
+      // Legs spread outward and come back together
+      // Left leg: spread to negative Z (outward left)
+      // Right leg: spread to positive Z (outward right)
+      const legSpread = MARK_LEG_SPREAD_Z * markPhase;
+
+      if (leftLegPivotRef.current) {
+        leftLegPivotRef.current.rotation.set(0, 0, -legSpread);
       }
-    } else if (!prefersReducedMotion) {
-      // Reset limbs to neutral when stopped (but not during reduced motion)
-      if (leftLegPivotRef.current) leftLegPivotRef.current.rotation.x = 0;
-      if (rightLegPivotRef.current) rightLegPivotRef.current.rotation.x = 0;
-      if (leftArmPivotRef.current) leftArmPivotRef.current.rotation.x = 0;
-      // Don't reset right arm X rotation - let throw animation handle it
+      if (rightLegPivotRef.current) {
+        rightLegPivotRef.current.rotation.set(0, 0, legSpread);
+      }
+    } else {
+      // Reset marking phase when not marking
+      cyclicAnimationRef.current.markingPhase = 0;
+
+      // ========================================================================
+      // Running Animation
+      // ========================================================================
+      const speed = Math.sqrt(
+        (entity.velocity?.x ?? 0) ** 2 + (entity.velocity?.z ?? 0) ** 2
+      );
+      const isRunning = speed > RUN_SPEED_THRESHOLD;
+
+      if (isRunning && !prefersReducedMotion) {
+        // Advance run cycle phase based on time (scaled by simulation speed)
+        cyclicAnimationRef.current.runningPhase +=
+          delta * simulationSpeed * RUN_CYCLE_FREQUENCY * Math.PI * 2;
+
+        // Keep phase in 0-2π range
+        if (cyclicAnimationRef.current.runningPhase > Math.PI * 2) {
+          cyclicAnimationRef.current.runningPhase -= Math.PI * 2;
+        }
+
+        const phase = cyclicAnimationRef.current.runningPhase;
+
+        // Leg swing (X rotation - forward/back)
+        // Left leg forward when right leg back (opposite phase)
+        const leftLegSwing = Math.sin(phase) * LEG_SWING_AMPLITUDE;
+        const rightLegSwing = Math.sin(phase + Math.PI) * LEG_SWING_AMPLITUDE;
+
+        if (leftLegPivotRef.current) {
+          leftLegPivotRef.current.rotation.x = leftLegSwing;
+        }
+        if (rightLegPivotRef.current) {
+          rightLegPivotRef.current.rotation.x = rightLegSwing;
+        }
+
+        // Arm swing (opposite to legs - natural running motion)
+        // Left arm swings with right leg, right arm swings with left leg
+        const leftArmSwing = Math.sin(phase + Math.PI) * ARM_SWING_AMPLITUDE;
+        const rightArmSwing = Math.sin(phase) * ARM_SWING_AMPLITUDE;
+
+        if (leftArmPivotRef.current) {
+          leftArmPivotRef.current.rotation.x = leftArmSwing;
+        }
+
+        // Only animate right arm running swing if NOT throwing/pulling
+        if (rightArmPivotRef.current && !anim.isAnimating) {
+          rightArmPivotRef.current.rotation.x = rightArmSwing;
+        }
+      } else if (!prefersReducedMotion) {
+        // Reset limbs to neutral when stopped (but not during reduced motion)
+        if (leftLegPivotRef.current) leftLegPivotRef.current.rotation.x = 0;
+        if (rightLegPivotRef.current) rightLegPivotRef.current.rotation.x = 0;
+        if (leftArmPivotRef.current) leftArmPivotRef.current.rotation.x = 0;
+        // Don't reset right arm X rotation - let throw animation handle it
+      }
     }
 
     // ========================================================================
@@ -400,6 +469,7 @@ export const Player = memo(function Player({ entity, color }: PlayerProps) {
       entity.handWorldPosition.x = handOffset.x;
       entity.handWorldPosition.y = handOffset.y;
       entity.handWorldPosition.z = handOffset.z;
+      entity.handPositionInitialized = true;
     }
   });
 

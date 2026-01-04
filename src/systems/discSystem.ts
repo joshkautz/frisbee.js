@@ -339,21 +339,9 @@ export function updateDiscToFollowHolder(): void {
 
   if (!holder?.handWorldPosition) return;
 
-  // Check if hand position has been calculated yet (not still at default origin).
-  // On the first frame, Player.tsx hasn't run useFrame yet, so handWorldPosition
-  // is still (0,0,0). Fall back to player position to avoid disc flashing at origin.
-  //
-  // Edge case: If a player were exactly at world origin (0,0,0), this check would
-  // incorrectly treat their hand position as invalid. This is acceptable because:
-  // 1. The field is centered at origin, so players are never at (0,0,0)
-  // 2. The hand Y position is always > 0 (arm height above ground)
-  const isValidHandPos =
-    holder.handWorldPosition.x !== 0 ||
-    holder.handWorldPosition.y !== 0 ||
-    holder.handWorldPosition.z !== 0;
-
-  if (!isValidHandPos) {
-    // Fall back to player position until hand position is calculated
+  // Check if hand position has been computed by Player.tsx's useFrame.
+  // On the first frame, useFrame hasn't run yet, so we fall back to player position.
+  if (!holder.handPositionInitialized) {
     discEntity.position.x = holder.position.x;
     discEntity.position.y = DISC_HELD_HEIGHT;
     discEntity.position.z = holder.position.z;

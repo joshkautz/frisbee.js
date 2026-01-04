@@ -25,6 +25,9 @@ export {
   type AIState,
   type SimulationState,
   type AttackingDirection,
+  type PullTimingPhase,
+  type PullTimingState,
+  type CelebrationTimingState,
 } from "./game";
 
 // Component prop types

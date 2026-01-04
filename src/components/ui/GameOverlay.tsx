@@ -57,7 +57,7 @@ export const GameOverlay = memo(function GameOverlay() {
         backgroundColor: isHalftime
           ? "rgba(59, 130, 246, 0.9)" // Blue for halftime
           : "rgba(0, 0, 0, 0.9)", // Dark for endgame
-        zIndex: 100,
+        zIndex: 90, // Below HelpOverlay (100) so user can access help during halftime
         fontFamily: "system-ui, sans-serif",
         color: "white",
         opacity: fadeSpring.opacity,
@@ -70,6 +70,7 @@ export const GameOverlay = memo(function GameOverlay() {
       <animated.div
         style={{
           textAlign: "center",
+          minWidth: 320, // Fixed min-width to prevent layout shift between states
           transform: contentSpring.scale.to(
             (s) => `scale(${s}) translateY(${contentSpring.y.get()}px)`
           ),
@@ -90,7 +91,7 @@ export const GameOverlay = memo(function GameOverlay() {
           style={{
             fontSize: 24,
             marginBottom: 32,
-            opacity: 0.9,
+            color: "rgba(255, 255, 255, 0.95)",
           }}
         >
           {subtitle}
@@ -105,7 +106,13 @@ export const GameOverlay = memo(function GameOverlay() {
           }}
         >
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 14, opacity: 0.7, marginBottom: 4 }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "rgba(255, 255, 255, 0.85)",
+                marginBottom: 4,
+              }}
+            >
               HOME
             </div>
             <div
@@ -122,14 +129,20 @@ export const GameOverlay = memo(function GameOverlay() {
           <div
             style={{
               fontSize: 32,
-              opacity: 0.5,
+              color: "rgba(255, 255, 255, 0.6)",
             }}
           >
             -
           </div>
 
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 14, opacity: 0.7, marginBottom: 4 }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "rgba(255, 255, 255, 0.85)",
+                marginBottom: 4,
+              }}
+            >
               AWAY
             </div>
             <div
@@ -149,7 +162,7 @@ export const GameOverlay = memo(function GameOverlay() {
             style={{
               marginTop: 32,
               fontSize: 16,
-              opacity: 0.7,
+              color: "rgba(255, 255, 255, 0.85)",
             }}
           >
             Game will resume shortly...
@@ -161,7 +174,7 @@ export const GameOverlay = memo(function GameOverlay() {
             style={{
               marginTop: 32,
               fontSize: 16,
-              opacity: 0.7,
+              color: "rgba(255, 255, 255, 0.85)",
             }}
           >
             Refresh to play again

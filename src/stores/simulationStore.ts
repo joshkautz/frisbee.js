@@ -14,13 +14,29 @@ import type {
   Team,
   SimulationState,
   AttackingDirection,
+  PullTimingPhase,
+  CelebrationTimingState,
 } from "@/types";
 import {
   SCORE_CELEBRATION_TIME,
   POINTS_TO_WIN,
   HALFTIME_POINTS,
+  PULL_ANIMATION_DURATION,
 } from "@/constants";
 import { useCameraShake } from "@/hooks/useCameraShake";
+
+// ============================================================================
+// Pull Timing Constants (in seconds, for frame-based timing)
+// ============================================================================
+
+/** Delay before pull animation starts (seconds) */
+const PULL_SETUP_DURATION = 0.5;
+
+/** Pull release timing (disc leaves hand at 75% through animation) */
+const PULL_RELEASE_PHASE = 0.75;
+
+/** Time from animation start to disc release (seconds) */
+const PULL_ANIMATION_TO_RELEASE = PULL_ANIMATION_DURATION * PULL_RELEASE_PHASE;
 
 const INITIAL_STATE = {
   homeScore: 0,
@@ -44,24 +60,11 @@ const INITIAL_STATE = {
   // Simulation controls
   isPaused: false,
   simulationSpeed: 1,
+
+  // Frame-based timing
+  pullTiming: null as { phase: PullTimingPhase; elapsed: number } | null,
+  celebrationTiming: null as CelebrationTimingState | null,
 };
-
-// Store pending timeouts for cleanup
-const pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
-
-function scheduleTimeout(callback: () => void, delay: number) {
-  const id = setTimeout(() => {
-    pendingTimeouts.delete(id);
-    callback();
-  }, delay);
-  pendingTimeouts.add(id);
-  return id;
-}
-
-function clearAllTimeouts() {
-  pendingTimeouts.forEach((id) => clearTimeout(id));
-  pendingTimeouts.clear();
-}
 
 export const useSimulationStore = create<SimulationState>()(
   subscribeWithSelector((set, get) => ({
@@ -117,25 +120,32 @@ export const useSimulationStore = create<SimulationState>()(
       // Trigger strong camera shake for score
       useCameraShake.getState().shake("score");
 
-      // After celebration, switch possession and go to pull (unless game over or halftime)
+      // Start frame-based celebration timing (unless game over)
+      const nextPossession: Team = team === "home" ? "away" : "home";
+
       if (!gameOver && !reachedHalftime) {
-        scheduleTimeout(() => {
-          set({
-            possession: team === "home" ? "away" : "home",
-            phase: "pull",
-          });
-        }, SCORE_CELEBRATION_TIME * 1000);
+        // Normal score - start celebration timer
+        set({
+          celebrationTiming: {
+            elapsed: 0,
+            duration: SCORE_CELEBRATION_TIME,
+            nextPossession,
+            nextPhase: "pull",
+          },
+        });
       } else if (reachedHalftime) {
-        // Halftime: switch sides and possession, then go to pull after delay
-        scheduleTimeout(() => {
-          set({
-            half: 2,
-            possession: team === "home" ? "away" : "home",
-            phase: "pull",
-          });
-        }, SCORE_CELEBRATION_TIME * 2000); // Longer delay for halftime
+        // Halftime - longer celebration, transition to second half
+        set({
+          celebrationTiming: {
+            elapsed: 0,
+            duration: SCORE_CELEBRATION_TIME * 2, // Longer delay for halftime
+            nextPossession,
+            nextPhase: "pull",
+            nextHalf: 2,
+          },
+        });
       }
-      // If game over, don't schedule any transition
+      // If game over, don't start celebration timing
     },
 
     turnover: () => {
@@ -205,9 +215,97 @@ export const useSimulationStore = create<SimulationState>()(
     },
 
     reset: () => {
-      // Clear all pending timeouts before resetting
-      clearAllTimeouts();
-      set(INITIAL_STATE);
+      // Preserve simulation speed when resetting
+      const currentSpeed = get().simulationSpeed;
+      set({ ...INITIAL_STATE, simulationSpeed: currentSpeed });
+    },
+
+    // ========================================================================
+    // Pull Timing Actions (frame-based timing)
+    // ========================================================================
+
+    startPullTiming: () => {
+      set({ pullTiming: { phase: "setup", elapsed: 0 } });
+    },
+
+    advancePullTiming: (delta: number): PullTimingPhase | "complete" | null => {
+      const state = get();
+      if (!state.pullTiming || state.isPaused) return null;
+
+      const scaledDelta = delta * state.simulationSpeed;
+      const newElapsed = state.pullTiming.elapsed + scaledDelta;
+
+      if (state.pullTiming.phase === "setup") {
+        if (newElapsed >= PULL_SETUP_DURATION) {
+          // Transition to animating phase
+          set({
+            pullTiming: {
+              phase: "animating",
+              elapsed: newElapsed - PULL_SETUP_DURATION,
+            },
+          });
+          return "animating";
+        }
+        // Still in setup phase
+        set({ pullTiming: { phase: "setup", elapsed: newElapsed } });
+        return "setup";
+      }
+
+      if (state.pullTiming.phase === "animating") {
+        if (newElapsed >= PULL_ANIMATION_TO_RELEASE) {
+          // Pull timing complete - clear timing state
+          set({ pullTiming: null });
+          return "complete";
+        }
+        // Still animating
+        set({ pullTiming: { phase: "animating", elapsed: newElapsed } });
+        return "animating";
+      }
+
+      return null;
+    },
+
+    clearPullTiming: () => {
+      set({ pullTiming: null });
+    },
+
+    // ========================================================================
+    // Celebration Timing Actions (frame-based timing)
+    // ========================================================================
+
+    advanceCelebrationTiming: (delta: number): "complete" | null => {
+      const state = get();
+      if (!state.celebrationTiming || state.isPaused) return null;
+
+      const scaledDelta = delta * state.simulationSpeed;
+      const newElapsed = state.celebrationTiming.elapsed + scaledDelta;
+
+      if (newElapsed >= state.celebrationTiming.duration) {
+        // Celebration complete - apply the transition
+        const { nextPossession, nextPhase, nextHalf } = state.celebrationTiming;
+
+        set({
+          celebrationTiming: null,
+          possession: nextPossession,
+          phase: nextPhase,
+          ...(nextHalf ? { half: nextHalf } : {}),
+        });
+
+        return "complete";
+      }
+
+      // Still celebrating
+      set({
+        celebrationTiming: {
+          ...state.celebrationTiming,
+          elapsed: newElapsed,
+        },
+      });
+      return null;
+    },
+
+    clearCelebrationTiming: () => {
+      set({ celebrationTiming: null });
     },
   }))
 );

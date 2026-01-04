@@ -4,10 +4,13 @@
  * Manages game initialization, the pull throw to start each point,
  * AI player behavior, and disc physics updates.
  *
+ * Uses frame-based timing instead of setTimeout for proper simulation speed
+ * support and pause-awareness.
+ *
  * @module hooks/useSimulation
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useSimulationStore } from "@/stores";
 import {
@@ -29,21 +32,10 @@ import {
   resetStallCount,
 } from "@/systems";
 import { distanceSquared2D } from "@/utils";
-import { PULL_ANIMATION_DURATION } from "@/constants";
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-/** Delay before pull animation starts (allows players to set up) */
-const PULL_SETUP_DELAY_MS = 500;
-
-/** Pull release timing (disc leaves hand at 75% through animation) */
-const PULL_RELEASE_PHASE = 0.75;
-
-/** Time from animation start to disc release (in milliseconds) */
-const PULL_RELEASE_DELAY_MS =
-  PULL_ANIMATION_DURATION * PULL_RELEASE_PHASE * 1000;
 
 /** Player ID for the designated puller (home team player 4) */
 const PULLER_ID = "home-4";
@@ -126,6 +118,9 @@ function performPull(): void {
 
   // Execute the throw
   throwDisc({ x: pullData.x, y: pullData.y, z: pullData.z }, null);
+
+  // Transition to playing phase
+  useSimulationStore.getState().setPhase("playing");
 }
 
 /**
@@ -141,26 +136,19 @@ function startPullAnimation(): void {
 }
 
 /**
- * Restart the current point - resets all entities and performs a new pull.
+ * Restart the current point - resets all entities and starts a new pull.
  *
- * Sequence:
- * 1. Reset Zustand store to initial state
- * 2. Clear and recreate all ECS entities
- * 3. Give disc to designated puller (resets disc flight state)
- * 4. Start pull animation after setup delay
- * 5. Execute pull throw at animation release point
- *
- * Note: The nested setTimeout calls are not tracked for cleanup. This is
- * acceptable because restartPoint is only called from user actions (not
- * automatically), and the timeouts complete quickly (~1.5s total). In
- * development, HMR may cause brief state inconsistency if triggered during
- * the timeout window, but this has no production impact.
- *
- * @param setPhase - Function to update the game phase
+ * Uses frame-based timing through the store's pullTiming state, which is
+ * advanced each frame in useFrame. This ensures:
+ * - Timing respects simulation speed changes dynamically
+ * - Timing pauses when game is paused
+ * - No cleanup needed (no dangling timeouts)
  */
-function restartPoint(setPhase: (phase: "pull" | "playing") => void): void {
+function restartPoint(): void {
+  const store = useSimulationStore.getState();
+
   // Reset simulation store to initial state
-  useSimulationStore.getState().reset();
+  store.reset();
 
   // Recreate all entities (creates fresh disc with clean state)
   initializeEntities();
@@ -168,16 +156,8 @@ function restartPoint(setPhase: (phase: "pull" | "playing") => void): void {
   // Give disc to puller (giveDiscTo also resets disc flight state)
   giveDiscTo(PULLER_ID);
 
-  // Start the pull animation after setup delay
-  setTimeout(() => {
-    startPullAnimation();
-
-    // Release the disc at the animation release point
-    setTimeout(() => {
-      performPull();
-      setPhase("playing");
-    }, PULL_RELEASE_DELAY_MS);
-  }, PULL_SETUP_DELAY_MS);
+  // Start frame-based pull timing (will be advanced in useFrame)
+  store.startPullTiming();
 }
 
 // ============================================================================
@@ -200,7 +180,7 @@ declare global {
  *
  * Responsibilities:
  * - Initialize game entities on mount
- * - Schedule and execute the pull throw
+ * - Manage pull timing using frame-based accumulators
  * - Update disc physics each frame
  * - Run AI for player movement and decisions
  * - Handle throw execution when AI decides to throw
@@ -211,42 +191,70 @@ export function useSimulation() {
   const phase = useSimulationStore((s) => s.phase);
   const possession = useSimulationStore((s) => s.possession);
   const isPaused = useSimulationStore((s) => s.isPaused);
-  const setPhase = useSimulationStore((s) => s.setPhase);
   const reset = useSimulationStore((s) => s.reset);
+  const startPullTiming = useSimulationStore((s) => s.startPullTiming);
+  const clearPullTiming = useSimulationStore((s) => s.clearPullTiming);
 
-  // Initialize entities and schedule the pull throw on mount
+  // Track previous pull timing phase to detect transitions
+  const prevPullPhaseRef = useRef<string | null>(null);
+
+  // Initialize entities and start pull timing on mount
   useEffect(() => {
     initializeEntities();
     giveDiscTo(PULLER_ID);
 
     // Expose restart function for UI
-    window.restartThrow = () => restartPoint(setPhase);
+    window.restartThrow = restartPoint;
 
-    // Start the pull animation after setup delay
-    const animationTimeout = setTimeout(() => {
-      startPullAnimation();
-    }, PULL_SETUP_DELAY_MS);
-
-    // Schedule the pull throw at animation release point
-    const pullTimeout = setTimeout(() => {
-      performPull();
-      setPhase("playing");
-    }, PULL_SETUP_DELAY_MS + PULL_RELEASE_DELAY_MS);
+    // Start frame-based pull timing (will be advanced in useFrame)
+    startPullTiming();
 
     return () => {
-      clearTimeout(animationTimeout);
-      clearTimeout(pullTimeout);
       delete window.restartThrow;
+      clearPullTiming();
       clearEntities();
       reset();
     };
-  }, [setPhase, reset]);
+  }, [reset, startPullTiming, clearPullTiming]);
 
   // Game loop - runs every frame
   useFrame((_, delta) => {
     const state = useSimulationStore.getState();
     if (state.isPaused) return;
 
+    // ========================================================================
+    // Game Clock
+    // ========================================================================
+    state.tick(delta);
+
+    // ========================================================================
+    // Pull Timing (frame-based)
+    // ========================================================================
+    // Advance pull timing and react to phase transitions
+    const pullPhase = state.advancePullTiming(delta);
+
+    // Detect transition to "animating" phase - start pull animation
+    if (pullPhase === "animating" && prevPullPhaseRef.current === "setup") {
+      startPullAnimation();
+    }
+
+    // Detect completion - execute the pull
+    if (pullPhase === "complete") {
+      performPull();
+    }
+
+    prevPullPhaseRef.current = pullPhase;
+
+    // ========================================================================
+    // Celebration Timing (frame-based)
+    // ========================================================================
+    // Advance celebration timing after scores
+    // When complete, the store automatically transitions phase and possession
+    state.advanceCelebrationTiming(delta);
+
+    // ========================================================================
+    // Disc Physics
+    // ========================================================================
     // Update disc physics when in flight, otherwise follow holder
     if (state.discInFlight) {
       updateDiscFlight(delta);
@@ -254,6 +262,9 @@ export function useSimulation() {
       updateDiscToFollowHolder();
     }
 
+    // ========================================================================
+    // AI and Gameplay
+    // ========================================================================
     // Run AI during active gameplay phases (pull, playing, turnover)
     // Only pause AI during score celebration or pregame
     const activePhases = ["pull", "playing", "turnover"];

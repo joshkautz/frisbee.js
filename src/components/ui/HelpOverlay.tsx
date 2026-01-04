@@ -2,7 +2,7 @@
  * Help overlay component showing game controls.
  *
  * Displays keyboard and touch controls when triggered.
- * Can be toggled with the "?" key.
+ * Can be toggled with the "?" key or via window.showControls().
  *
  * @module components/ui/HelpOverlay
  */
@@ -48,7 +48,7 @@ const sectionStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
-  color: "#60a5fa",
+  color: "#93c5fd", // Lighter blue for better contrast on dark bg
   marginBottom: 8,
   textTransform: "uppercase",
   letterSpacing: 1,
@@ -62,11 +62,13 @@ const controlRowStyle: CSSProperties = {
 };
 
 const keyStyle: CSSProperties = {
-  backgroundColor: "rgba(255, 255, 255, 0.15)",
+  backgroundColor: "rgba(255, 255, 255, 0.2)",
+  border: "1px solid rgba(255, 255, 255, 0.3)",
   padding: "2px 8px",
   borderRadius: 4,
   fontSize: 12,
   fontFamily: "monospace",
+  color: "#fff",
 };
 
 const closeButtonStyle: CSSProperties = {
@@ -83,28 +85,14 @@ const closeButtonStyle: CSSProperties = {
   marginTop: 16,
 };
 
-const helpButtonStyle: CSSProperties = {
-  position: "fixed",
-  bottom: 16,
-  left: 16,
-  width: 44,
-  height: 44,
-  borderRadius: "50%",
-  backgroundColor: "rgba(51, 102, 204, 0.9)",
-  color: "#fff",
-  border: "none",
-  fontSize: 20,
-  fontWeight: 700,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
-  zIndex: 50,
-  transition: "transform 0.15s, background-color 0.15s",
-};
-
 const FIRST_VISIT_KEY = "frisbee-js-help-shown";
+
+// Expose global function to show controls
+declare global {
+  interface Window {
+    showControls?: () => void;
+  }
+}
 
 /**
  * Help overlay showing game controls.
@@ -114,6 +102,7 @@ const FIRST_VISIT_KEY = "frisbee-js-help-shown";
  * - Touch/mouse controls list
  * - Toggle with "?" key
  * - Close with Escape or clicking outside
+ * - Can be opened via window.showControls()
  * - Auto-shows on first visit (uses localStorage)
  */
 export const HelpOverlay = memo(function HelpOverlay() {
@@ -131,6 +120,14 @@ export const HelpOverlay = memo(function HelpOverlay() {
     }
     return false;
   });
+
+  // Expose global function to show controls
+  useEffect(() => {
+    window.showControls = () => setIsVisible(true);
+    return () => {
+      delete window.showControls;
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -155,24 +152,7 @@ export const HelpOverlay = memo(function HelpOverlay() {
   }, [isVisible]);
 
   if (!isVisible) {
-    return (
-      <button
-        style={helpButtonStyle}
-        onClick={() => setIsVisible(true)}
-        aria-label="Show controls help"
-        title="Controls Help"
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.1)";
-          e.currentTarget.style.backgroundColor = "rgba(51, 102, 204, 1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.backgroundColor = "rgba(51, 102, 204, 0.9)";
-        }}
-      >
-        ?
-      </button>
-    );
+    return null;
   }
 
   return (

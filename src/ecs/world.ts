@@ -93,6 +93,8 @@ export type Entity = {
   meshRef?: MeshRef;
   /** World position of the player's throwing hand (updated each frame) */
   handWorldPosition?: Position;
+  /** Whether handWorldPosition has been computed (false until first useFrame) */
+  handPositionInitialized?: boolean;
 };
 
 /**
@@ -185,6 +187,7 @@ export function createPlayer(
     physicsRef: { rigidBody: null },
     meshRef: { mesh: null },
     handWorldPosition: { x: 0, y: 0, z: 0 },
+    handPositionInitialized: false,
   };
 
   world.add(entity);

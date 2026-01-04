@@ -122,26 +122,6 @@
         outline-offset: -3px;
       }
 
-      /* Instructions overlay */
-      .controls-hint {
-        position: fixed;
-        bottom: 1rem;
-        left: 1rem;
-        background: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        font-size: 0.875rem;
-        pointer-events: none;
-        opacity: 0.8;
-      }
-
-      @media (max-width: 600px) {
-        .controls-hint {
-          display: none;
-        }
-      }
-
       /* No JavaScript fallback */
       .noscript-message {
         display: flex;
@@ -177,9 +157,6 @@
       tabindex="0"
       aria-label="Ultimate Frisbee 3D game. Press ? for controls help. Use mouse or touch to rotate camera, scroll or pinch to zoom. Use WASD or arrow keys to pan. Press Space to pause."
     ></div>
-    <div class="controls-hint" aria-hidden="true">
-      <strong>Controls:</strong> WASD/Arrows to pan • Drag to rotate • Scroll/Pinch to zoom
-    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
